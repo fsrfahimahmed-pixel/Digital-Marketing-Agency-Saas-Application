@@ -205,7 +205,9 @@ export const ProjectHealthEngine = {
     const inProgressTasks = projectTasks.filter((t) => t.status === 'In Progress' || t.status === 'Review').length;
 
     let progressPercent = 0;
-    if (project.status === 'Completed') {
+    if (typeof project.customProgressPercent === 'number') {
+      progressPercent = Math.max(0, Math.min(100, Math.round(project.customProgressPercent)));
+    } else if (project.status === 'Completed') {
       progressPercent = 100;
     } else if (totalTasks > 0) {
       progressPercent = Math.round(((completedTasks + inProgressTasks * 0.45) / totalTasks) * 100);

@@ -8,7 +8,10 @@ import {
   CheckCircle2,
   CheckSquare,
   FolderPlus,
+  Hash,
   Layers,
+  Plus,
+  Sparkles,
   UserPlus,
   X,
 } from 'lucide-react';
@@ -32,6 +35,7 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
     setQuickCreateOpen,
     snapshot,
     currency,
+    addToast,
     createProject,
     createTask,
     createLead,
@@ -46,7 +50,17 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
   const [wizardStep, setWizardStep] = useState<number>(1);
 
   // Project Wizard State
+  const [prjSerialNumber, setPrjSerialNumber] = useState(
+    () => `PRJ-${101 + snapshot.projects.length}`
+  );
   const [prjClientId, setPrjClientId] = useState(snapshot.clients[0]?.id || 'cli_001');
+  const [isAddingNewClient, setIsAddingNewClient] = useState(false);
+  const [newClientCompany, setNewClientCompany] = useState('');
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientEmail, setNewClientEmail] = useState('');
+  const [newClientPhone, setNewClientPhone] = useState('');
+  const [newClientIndustry, setNewClientIndustry] = useState('B2B SaaS & Tech');
+
   const [prjTemplateId, setPrjTemplateId] = useState<string>('tpl_001');
   const [prjName, setPrjName] = useState('');
   const [prjType, setPrjType] = useState('Paid Media & CRO Retainer');
@@ -131,12 +145,51 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
     );
   };
 
+  const handleSaveInlineClient = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newClientCompany.trim() || !newClientName.trim()) {
+      addToast(
+        'Client Information Missing',
+        'Please enter both company name and contact person name.',
+        'warning'
+      );
+      return;
+    }
+    const created = createClient({
+      name: newClientName.trim(),
+      company: newClientCompany.trim(),
+      email:
+        newClientEmail.trim() ||
+        `contact@${newClientCompany.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
+      phone: newClientPhone.trim() || '+880 1700-000000',
+      industry: newClientIndustry,
+      manager_id: prjManagerId || 'usr_mgr_01',
+      totalValueBdt: prjBudget || 1500000,
+      website: `https://${newClientCompany.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
+      notes: 'Added directly from Project Creation Wizard.',
+    });
+    setPrjClientId(created.id);
+    setIsAddingNewClient(false);
+    setNewClientCompany('');
+    setNewClientName('');
+    setNewClientEmail('');
+    setNewClientPhone('');
+    addToast(
+      'Client Saved & Selected',
+      `${created.company} has been added and selected for this project.`,
+      'success'
+    );
+  };
+
   const handleFinishProjectWizard = () => {
     const clientObj = snapshot.clients.find((c) => c.id === prjClientId);
     const finalName =
       prjName.trim() || `${prjType} — ${clientObj?.company || 'Client'}`;
+    const finalCode =
+      prjSerialNumber.trim() || `PRJ-${101 + snapshot.projects.length}`;
     const created = createProject({
       name: finalName,
+      code: finalCode,
       client_id: prjClientId,
       department_id: prjDeptId,
       manager_id: prjManagerId,
@@ -156,6 +209,7 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
     setQuickCreateOpen(false);
     setWizardStep(1);
     setPrjName('');
+    setPrjSerialNumber(`PRJ-${102 + snapshot.projects.length}`);
     openProjectDetail(created.id);
   };
 
@@ -398,21 +452,168 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
 
               {wizardStep === 1 && (
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                      Select Client Account
-                    </label>
-                    <select
-                      value={prjClientId}
-                      onChange={(e) => setPrjClientId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-sm text-slate-900 dark:text-white"
-                    >
-                      {snapshot.clients.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.company} — {c.name} ({c.industry})
+                  <div className="space-y-3.5">
+                    {/* Project Serial Number / Code (Manual Entry by Founder) */}
+                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-1.5 shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                          <Hash className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                          <span>Project Serial Number / SL (প্রজেক্টের ইউনিক সিরিয়াল নম্বর)</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-mono font-medium">
+                            Founder Manual Entry
+                          </span>
+                        </label>
+                        <span className="text-[11px] text-slate-400 font-mono">
+                          Unique Identifier
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={prjSerialNumber}
+                          onChange={(e) => setPrjSerialNumber(e.target.value)}
+                          placeholder="e.g., PRJ-108, SL-001, AGENCY-2026-01"
+                          className="w-full px-3.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-sm font-mono font-bold text-indigo-600 dark:text-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+                        />
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Founder এখানে ম্যানুয়ালি নিজের পছন্দমতো প্রজেক্ট সিরিয়াল নম্বর (SL Number) লিখতে পারবেন। এই সিরিয়াল নম্বর দিয়ে প্রজেক্টটি তৈরি হবে।
+                      </p>
+                    </div>
+
+                    {/* Client Account Dropdown & Inline Save */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Select Client Account (ক্লায়েন্ট নির্বাচন করুন)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setIsAddingNewClient((prev) => !prev)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>
+                            {isAddingNewClient
+                              ? 'Cancel (বিদ্যমান তালিকা)'
+                              : '+ Add New Client (নতুন ক্লায়েন্ট যোগ করুন)'}
+                          </span>
+                        </button>
+                      </div>
+
+                      <select
+                        value={isAddingNewClient ? '__NEW_CLIENT__' : prjClientId}
+                        onChange={(e) => {
+                          if (e.target.value === '__NEW_CLIENT__') {
+                            setIsAddingNewClient(true);
+                          } else {
+                            setIsAddingNewClient(false);
+                            setPrjClientId(e.target.value);
+                          }
+                        }}
+                        className="w-full px-3.5 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-sm text-slate-900 dark:text-white"
+                      >
+                        <option value="__NEW_CLIENT__">
+                          + Add New Client (নতুন ক্লায়েন্টের নাম ম্যানুয়ালি লিখে সেভ করুন)...
                         </option>
-                      ))}
-                    </select>
+                        {snapshot.clients.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.company} — {c.name} ({c.industry})
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* Inline New Client Creation Form */}
+                      {isAddingNewClient && (
+                        <div className="p-4 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-800/80 space-y-3 mt-2 shadow-xs">
+                          <div className="flex items-center justify-between pb-1 border-b border-indigo-100 dark:border-indigo-900/50">
+                            <span className="text-xs font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5">
+                              <Building2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                              Save New Client Profile (নতুন ক্লায়েন্টের তথ্য ম্যানুয়ালি লিখে সেভ করুন)
+                            </span>
+                            <span className="text-[10px] text-indigo-600 dark:text-indigo-400">
+                              Will save to client directory
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[11px] font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                Company / Brand Name (কোম্পানি / ব্র্যান্ডের নাম) *
+                              </label>
+                              <input
+                                type="text"
+                                value={newClientCompany}
+                                onChange={(e) => setNewClientCompany(e.target.value)}
+                                placeholder="e.g., TechFlow Digital Ltd."
+                                className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                Contact Person Name (যোগাযোগকারী ব্যক্তির নাম) *
+                              </label>
+                              <input
+                                type="text"
+                                value={newClientName}
+                                onChange={(e) => setNewClientName(e.target.value)}
+                                placeholder="e.g., Tanvir Ahmed"
+                                className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                Email Address (ইমেইল)
+                              </label>
+                              <input
+                                type="email"
+                                value={newClientEmail}
+                                onChange={(e) => setNewClientEmail(e.target.value)}
+                                placeholder="e.g., contact@techflow.com"
+                                className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                Industry (ইন্ডাস্ট্রি)
+                              </label>
+                              <select
+                                value={newClientIndustry}
+                                onChange={(e) => setNewClientIndustry(e.target.value)}
+                                className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              >
+                                <option value="B2B SaaS & Tech">B2B SaaS & Tech</option>
+                                <option value="E-Commerce & Retail">E-Commerce & Retail</option>
+                                <option value="Healthcare & Wellness">Healthcare & Wellness</option>
+                                <option value="Real Estate & PropTech">Real Estate & PropTech</option>
+                                <option value="Financial Services & Fintech">
+                                  Financial Services & Fintech
+                                </option>
+                                <option value="Education & EdTech">Education & EdTech</option>
+                                <option value="Hospitality & Travel">Hospitality & Travel</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setIsAddingNewClient(false)}
+                              className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSaveInlineClient()}
+                              className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-xs cursor-pointer"
+                            >
+                              Save & Select Client (সংরক্ষণ করুন)
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div>
@@ -618,6 +819,12 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
                       Pre-Launch Verification Summary
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
+                      <div>
+                        <span className="text-slate-500">Project SL No:</span>{' '}
+                        <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                          {prjSerialNumber || `PRJ-${101 + snapshot.projects.length}`}
+                        </span>
+                      </div>
                       <div>
                         <span className="text-slate-500">Client:</span>{' '}
                         <span className="font-medium text-slate-900 dark:text-white">

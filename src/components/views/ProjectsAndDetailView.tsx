@@ -64,6 +64,8 @@ export const ProjectsAndDetailView: React.FC = () => {
     openTaskDrawer,
     setQuickCreateOpen,
     updateProjectStatus,
+    updateProjectProgress,
+    resetProjectProgress,
     transferProject,
     updateProjectTeam,
     deleteProject,
@@ -281,21 +283,100 @@ export const ProjectsAndDetailView: React.FC = () => {
             </div>
           </div>
 
-          {/* Progress Bar */}
-          <div>
-            <div className="flex items-center justify-between text-xs font-mono mb-1.5">
-              <span className="text-slate-500">
-                Overall Delivery Progress ({health.completedTasks}/{health.totalTasks} tasks)
-              </span>
-              <span className="font-semibold text-indigo-600 dark:text-indigo-400">
-                {health.progressPercent}%
-              </span>
+          {/* Progress Bar & Mouse Controls */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-950/60 border border-slate-200/70 dark:border-slate-800/70 space-y-2.5">
+            <div className="flex items-center justify-between text-xs font-mono">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-600 dark:text-slate-400 font-sans font-medium">
+                  Overall Delivery Progress ({health.completedTasks}/{health.totalTasks} tasks)
+                </span>
+                {typeof project.customProgressPercent === 'number' ? (
+                  <span className="text-[10px] font-sans px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-medium">
+                    Manual Override
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-sans px-1.5 py-0.5 rounded bg-slate-200/60 dark:bg-slate-800 text-slate-500 font-medium">
+                    Automated
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-indigo-600 dark:text-indigo-400 text-sm">
+                  {health.progressPercent}%
+                </span>
+                {!isClient && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      title="Decrease 5% with mouse"
+                      onClick={() =>
+                        updateProjectProgress(
+                          project.id,
+                          Math.max(0, health.progressPercent - 5)
+                        )
+                      }
+                      className="w-5 h-5 rounded flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-bold leading-none select-none cursor-pointer"
+                    >
+                      −
+                    </button>
+                    <button
+                      type="button"
+                      title="Increase 5% with mouse"
+                      onClick={() =>
+                        updateProjectProgress(
+                          project.id,
+                          Math.min(100, health.progressPercent + 5)
+                        )
+                      }
+                      className="w-5 h-5 rounded flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-bold leading-none select-none cursor-pointer"
+                    >
+                      +
+                    </button>
+                    {typeof project.customProgressPercent === 'number' && (
+                      <button
+                        type="button"
+                        title="Reset to automated task calculation"
+                        onClick={() => resetProjectProgress(project.id)}
+                        className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline ml-1 cursor-pointer"
+                      >
+                        Reset Auto
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
-              <div
-                className="h-full bg-indigo-500 transition-all duration-300"
-                style={{ width: `${health.progressPercent}%` }}
-              />
+
+            <div className="flex items-center gap-3">
+              <div className="h-2.5 flex-1 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-300 rounded-full ${
+                    health.progressPercent === 100
+                      ? 'bg-emerald-500'
+                      : health.progressPercent >= 75
+                      ? 'bg-indigo-600'
+                      : health.progressPercent >= 35
+                      ? 'bg-blue-600'
+                      : 'bg-amber-500'
+                  }`}
+                  style={{ width: `${health.progressPercent}%` }}
+                />
+              </div>
+              {!isClient && (
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={health.progressPercent}
+                  onChange={(e) =>
+                    updateProjectProgress(project.id, Number(e.target.value))
+                  }
+                  title="Drag mouse slider to manually set project completion percentage"
+                  aria-label="Adjust completion percentage"
+                  className="w-28 sm:w-36 h-2 rounded-lg appearance-none cursor-grab active:cursor-grabbing bg-slate-200 dark:bg-slate-800 accent-indigo-600 focus:outline-none"
+                />
+              )}
             </div>
           </div>
 

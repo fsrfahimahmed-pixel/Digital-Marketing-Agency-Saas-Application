@@ -137,6 +137,7 @@ export interface Project {
   created_at: string;
   updated_at: string;
   transferHistory: ProjectTransferRecord[];
+  customProgressPercent?: number;
 }
 
 export type TaskStatus = 'Backlog' | 'To Do' | 'In Progress' | 'Blocked' | 'Review' | 'Completed';

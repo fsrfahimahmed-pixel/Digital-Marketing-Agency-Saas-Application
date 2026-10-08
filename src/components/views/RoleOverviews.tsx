@@ -1,15 +1,20 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
+  Check,
   CheckCircle2,
   Clock,
   FileCheck2,
   FolderKanban,
   MessageSquare,
+  Minus,
+  MousePointerClick,
   Play,
   Plus,
+  RotateCcw,
   ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
 } from 'lucide-react';
 import { useAgency } from '../../context/AgencyContext';
@@ -20,6 +25,7 @@ import {
   ProjectHealthEngine,
   WorkloadEngine,
 } from '../../services/agencyServices';
+import { ApprovalItem, Project, Task } from '../../types/domain';
 import { HorizontalDistributionBar, InteractiveAreaChart } from '../ui/Charts';
 import {
   AvatarCircle,
@@ -30,6 +36,257 @@ import {
   PriorityText,
   WorkloadBar,
 } from '../ui/Primitives';
+
+interface EmployeeProjectProgressCardProps {
+  project: Project;
+  tasks: Task[];
+  approvals: ApprovalItem[];
+  managerName?: string;
+  onOpenDetail: (projectId: string) => void;
+  onUpdateProgress: (projectId: string, percent: number, silent?: boolean) => void;
+  onResetProgress: (projectId: string) => void;
+}
+
+const EmployeeProjectProgressCard: React.FC<EmployeeProjectProgressCardProps> = ({
+  project,
+  tasks,
+  approvals,
+  managerName,
+  onOpenDetail,
+  onUpdateProgress,
+  onResetProgress,
+}) => {
+  const health = ProjectHealthEngine.calculate(project, tasks, approvals);
+  const isManual = typeof project.customProgressPercent === 'number';
+
+  const [localPercent, setLocalPercent] = useState<number>(health.progressPercent);
+  const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    if (!isDragging) {
+      setLocalPercent(health.progressPercent);
+    }
+  }, [health.progressPercent, isDragging]);
+
+  const handleSliderDrag = (val: number) => {
+    const clamped = Math.max(0, Math.min(100, Math.round(val)));
+    setLocalPercent(clamped);
+    onUpdateProgress(project.id, clamped, true);
+  };
+
+  const handleSliderCommit = (val: number) => {
+    setIsDragging(false);
+    const clamped = Math.max(0, Math.min(100, Math.round(val)));
+    setLocalPercent(clamped);
+    onUpdateProgress(project.id, clamped, false);
+  };
+
+  const handleStep = (delta: number) => {
+    const nextVal = Math.max(0, Math.min(100, localPercent + delta));
+    setLocalPercent(nextVal);
+    onUpdateProgress(project.id, nextVal, false);
+  };
+
+  const handlePreset = (presetVal: number) => {
+    setLocalPercent(presetVal);
+    onUpdateProgress(project.id, presetVal, false);
+  };
+
+  const handleDirectNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const parsed = parseInt(e.target.value, 10);
+    if (!isNaN(parsed)) {
+      const clamped = Math.max(0, Math.min(100, parsed));
+      setLocalPercent(clamped);
+      onUpdateProgress(project.id, clamped, false);
+    }
+  };
+
+  return (
+    <div
+      onClick={() => onOpenDetail(project.id)}
+      className="group p-4 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-white dark:bg-slate-900/60 hover:border-indigo-500/50 hover:shadow-md transition-all duration-150 cursor-pointer space-y-3.5"
+    >
+      <div className="flex items-center justify-between text-xs text-slate-500">
+        <div className="flex items-center gap-2">
+          <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50">
+            {project.code}
+          </span>
+          <span className="truncate">Manager: {managerName || 'Agency Lead'}</span>
+        </div>
+        <span className="text-[11px] font-mono text-slate-400">
+          Due: {project.deadline}
+        </span>
+      </div>
+
+      <div className="flex items-start justify-between gap-2">
+        <h4 className="text-sm font-semibold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+          {project.name}
+        </h4>
+        <span className="shrink-0 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+          {project.status}
+        </span>
+      </div>
+
+      {/* Interactive Mouse Progress Controller */}
+      <div
+        className="p-3.5 rounded-xl bg-slate-50/90 dark:bg-slate-950/80 border border-slate-200/80 dark:border-slate-800/80 space-y-3 cursor-default"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              Project Completion:
+            </span>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={localPercent}
+                onChange={handleDirectNumberChange}
+                className="w-14 px-1.5 py-0.5 text-center font-mono font-bold text-sm rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                title="Click or scroll mouse to adjust percentage"
+              />
+              <span className="font-bold text-xs text-indigo-600 dark:text-indigo-400">%</span>
+              {isManual ? (
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30">
+                  Manual
+                </span>
+              ) : (
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                  Auto
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Mouse Steppers: -10%, -5%, +5%, +10% */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              title="Decrease 10% (Mouse Click)"
+              onClick={() => handleStep(-10)}
+              disabled={localPercent <= 0}
+              className="px-1.5 py-1 rounded bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            >
+              −10%
+            </button>
+            <button
+              type="button"
+              title="Decrease 5% (Mouse Click)"
+              onClick={() => handleStep(-5)}
+              disabled={localPercent <= 0}
+              className="px-2 py-1 rounded bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            >
+              −5%
+            </button>
+            <button
+              type="button"
+              title="Increase 5% (Mouse Click)"
+              onClick={() => handleStep(5)}
+              disabled={localPercent >= 100}
+              className="px-2 py-1 rounded bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            >
+              +5%
+            </button>
+            <button
+              type="button"
+              title="Increase 10% (Mouse Click)"
+              onClick={() => handleStep(10)}
+              disabled={localPercent >= 100}
+              className="px-1.5 py-1 rounded bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            >
+              +10%
+            </button>
+          </div>
+        </div>
+
+        {/* Mouse Draggable Range Slider with Filled Gradient */}
+        <div className="space-y-1">
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={localPercent}
+            onMouseDown={() => setIsDragging(true)}
+            onTouchStart={() => setIsDragging(true)}
+            onChange={(e) => handleSliderDrag(Number(e.target.value))}
+            onMouseUp={(e) => handleSliderCommit(Number((e.target as HTMLInputElement).value))}
+            onTouchEnd={(e) => handleSliderCommit(Number((e.target as HTMLInputElement).value))}
+            aria-label={`Adjust ${project.name} completion percentage`}
+            style={{
+              background: `linear-gradient(to right, #6366f1 0%, #6366f1 ${localPercent}%, #cbd5e1 ${localPercent}%, #cbd5e1 100%)`,
+            }}
+            className="w-full h-2.5 rounded-lg appearance-none cursor-grab active:cursor-grabbing accent-indigo-600 focus:outline-none"
+          />
+        </div>
+
+        {/* Quick Mouse Presets */}
+        <div className="flex items-center justify-between gap-1 flex-wrap pt-0.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] text-slate-400 font-medium">Presets:</span>
+            {[0, 25, 50, 75, 100].map((preset) => {
+              const isActive = localPercent === preset;
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => handlePreset(preset)}
+                  className={`px-2 py-0.5 rounded text-[11px] font-mono font-medium transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-indigo-600 text-white font-bold scale-105 shadow-xs'
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {preset}%
+                </button>
+              );
+            })}
+          </div>
+
+          {isManual && (
+            <button
+              type="button"
+              onClick={() => onResetProgress(project.id)}
+              title="Reset back to automatic sprint calculation"
+              className="inline-flex items-center gap-1 text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer ml-auto"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset Auto</span>
+            </button>
+          )}
+        </div>
+
+        {/* Progress Bar & Status Line */}
+        <div className="space-y-1 pt-0.5">
+          <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+            <div
+              className={`h-full transition-all duration-300 rounded-full ${
+                localPercent === 100
+                  ? 'bg-emerald-500'
+                  : localPercent >= 75
+                  ? 'bg-indigo-600'
+                  : localPercent >= 35
+                  ? 'bg-blue-600'
+                  : 'bg-amber-500'
+              }`}
+              style={{ width: `${localPercent}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+            <span>0%</span>
+            <span className="text-slate-500 font-sans">
+              {localPercent === 100 ? '✅ 100% Completed' : `Due: ${project.deadline}`}
+            </span>
+            <span>100%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const RoleOverviews: React.FC = () => {
   const {
@@ -43,6 +300,8 @@ export const RoleOverviews: React.FC = () => {
     setQuickCreateOpen,
     setCopilotOpen,
     updateTaskStatus,
+    updateProjectProgress,
+    resetProjectProgress,
     decideApproval,
   } = useAgency();
 
@@ -1039,46 +1298,53 @@ export const RoleOverviews: React.FC = () => {
             </div>
           </div>
 
-          <div className="lg:col-span-5 p-6 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800/80 space-y-4">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-              My Active Project Workspaces ({visibleProjects.length})
-            </h3>
-            <div className="space-y-3">
-              {visibleProjects.map((prj) => {
-                const health = ProjectHealthEngine.calculate(
-                  prj,
-                  snapshot.tasks,
-                  snapshot.approvals
-                );
-                const mgr = snapshot.users.find((u) => u.id === prj.manager_id);
-                return (
-                  <div
-                    key={prj.id}
-                    onClick={() => openProjectDetail(prj.id)}
-                    className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800/80 hover:border-indigo-500/40 cursor-pointer space-y-2.5"
-                  >
-                    <div className="flex items-center justify-between text-xs text-slate-500">
-                      <span className="font-mono font-semibold text-indigo-600 dark:text-indigo-400">
-                        {prj.code}
-                      </span>
-                      <span>Manager: {mgr?.name}</span>
-                    </div>
-                    <div className="text-sm font-semibold text-slate-900 dark:text-white">
-                      {prj.name}
-                    </div>
-                    <div className="flex items-center justify-between text-xs font-mono">
-                      <span>Progress: {health.progressPercent}%</span>
-                      <span>Due {prj.deadline}</span>
-                    </div>
-                    <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
-                      <div
-                        className="h-full bg-indigo-500"
-                        style={{ width: `${health.progressPercent}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+          <div className="lg:col-span-5 p-6 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800/80 space-y-4 shadow-xs">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+                    My Active Project Workspaces
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/50">
+                    {visibleProjects.length}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  মাউস (Mouse) দিয়ে Slider টেনে বা − / + বাটনে ক্লিক করে প্রজেক্ট সম্পন্ন হওয়ার পারসেন্টেজ (%) বাড়ান বা কমান
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Helper Banner */}
+            <div className="px-3 py-2 rounded-lg bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/50 flex items-center justify-between text-xs text-indigo-700 dark:text-indigo-300">
+              <span className="font-medium flex items-center gap-1.5">
+                <MousePointerClick className="w-3.5 h-3.5 shrink-0" />
+                <span>Drag slider or click presets to set project completion percentage manually</span>
+              </span>
+            </div>
+
+            <div className="space-y-3.5">
+              {visibleProjects.length === 0 ? (
+                <div className="p-8 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-400">
+                  No active projects currently assigned to you.
+                </div>
+              ) : (
+                visibleProjects.map((prj) => {
+                  const mgr = snapshot.users.find((u) => u.id === prj.manager_id);
+                  return (
+                    <EmployeeProjectProgressCard
+                      key={prj.id}
+                      project={prj}
+                      tasks={snapshot.tasks}
+                      approvals={snapshot.approvals}
+                      managerName={mgr?.name}
+                      onOpenDetail={openProjectDetail}
+                      onUpdateProgress={updateProjectProgress}
+                      onResetProgress={resetProjectProgress}
+                    />
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

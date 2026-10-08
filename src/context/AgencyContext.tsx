@@ -32,6 +32,7 @@ export type PublicScreen = 'home' | 'login';
 
 interface CreateProjectInput {
   name: string;
+  code?: string;
   client_id: string;
   department_id: string;
   manager_id: string;
@@ -127,6 +128,8 @@ interface AgencyContextValue {
   // Business Mutations
   createProject: (input: CreateProjectInput) => Project;
   updateProjectStatus: (projectId: string, status: ProjectStatus) => void;
+  updateProjectProgress: (projectId: string, progressPercent: number, silent?: boolean) => void;
+  resetProjectProgress: (projectId: string) => void;
   transferProject: (
     projectId: string,
     toManagerId: string,
@@ -423,10 +426,11 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const createProject = (input: CreateProjectInput): Project => {
     const newId = `prj_${Date.now().toString(36)}`;
     const codeNum = 101 + snapshot.projects.length;
+    const finalCode = input.code?.trim() || `PRJ-${codeNum}`;
     const newProject: Project = {
       id: newId,
       name: input.name,
-      code: `PRJ-${codeNum}`,
+      code: finalCode,
       description: input.description,
       objectives: input.objectives.length > 0 ? input.objectives : ['Deliver campaign KPIs on schedule'],
       client_id: input.client_id,
@@ -548,6 +552,60 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return db;
     });
     addToast('Project Status Updated', `Project moved to ${status}.`);
+  };
+
+  const updateProjectProgress = (projectId: string, progressPercent: number, silent = false) => {
+    const bounded = Math.max(0, Math.min(100, Math.round(progressPercent)));
+    commitSnapshot((db) => {
+      const prj = db.projects.find((p) => p.id === projectId);
+      if (prj) {
+        prj.customProgressPercent = bounded;
+        prj.updated_at = TODAY_STR;
+        if (bounded === 100 && prj.status !== 'Completed') {
+          prj.status = 'Completed';
+        } else if (bounded < 100 && prj.status === 'Completed') {
+          prj.status = 'Active';
+        }
+        db.activities.unshift({
+          id: `act_${Date.now()}`,
+          actor_id: currentUser?.id || 'usr_emp_01',
+          action: `updated project progress to ${bounded}%`,
+          targetType: 'Project',
+          targetName: prj.name,
+          project_id: prj.id,
+          client_id: prj.client_id,
+          visibility: 'Client-safe',
+          created_at: `${TODAY_STR} 12:00`,
+        });
+      }
+      return db;
+    });
+    if (!silent) {
+      addToast('Project Progress Updated', `Set completion to ${bounded}%.`);
+    }
+  };
+
+  const resetProjectProgress = (projectId: string) => {
+    commitSnapshot((db) => {
+      const prj = db.projects.find((p) => p.id === projectId);
+      if (prj) {
+        delete prj.customProgressPercent;
+        prj.updated_at = TODAY_STR;
+        db.activities.unshift({
+          id: `act_${Date.now()}`,
+          actor_id: currentUser?.id || 'usr_emp_01',
+          action: 'reset project progress to automated calculation',
+          targetType: 'Project',
+          targetName: prj.name,
+          project_id: prj.id,
+          client_id: prj.client_id,
+          visibility: 'Client-safe',
+          created_at: `${TODAY_STR} 12:00`,
+        });
+      }
+      return db;
+    });
+    addToast('Project Progress Reset', 'Reverted back to automated task-based completion.');
   };
 
   const transferProject = (
@@ -1291,6 +1349,8 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         dismissToast,
         createProject,
         updateProjectStatus,
+        updateProjectProgress,
+        resetProjectProgress,
         transferProject,
         updateProjectTeam,
         deleteProject,
