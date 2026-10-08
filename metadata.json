@@ -1,0 +1,6 @@
+{
+  "name": "AgencyOS — Digital Marketing Agency Operating System",
+  "description": "Complete multi-role operating system for digital marketing agencies covering executive governance, project delivery, CRM pipeline, team workload, client portal, approvals, and financial operations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
