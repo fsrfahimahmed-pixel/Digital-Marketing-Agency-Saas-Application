@@ -83,17 +83,20 @@ export const PublicHomeAndLogin: React.FC = () => {
     },
   ];
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setIsLoading(true);
-    setTimeout(() => {
-      const res = loginWithCredentials(email, password);
+    try {
+      const res = await loginWithCredentials(email, password);
       setIsLoading(false);
       if (!res.ok && res.error) {
         setErrorMsg(res.error);
       }
-    }, 180);
+    } catch (err: unknown) {
+      setIsLoading(false);
+      setErrorMsg(err instanceof Error ? err.message : 'Login failed');
+    }
   };
 
   const handleSelectAccount = (acctEmail: string) => {

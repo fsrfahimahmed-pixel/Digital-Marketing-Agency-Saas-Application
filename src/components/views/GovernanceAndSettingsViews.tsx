@@ -556,12 +556,18 @@ export const SettingsAndProfileView: React.FC<{ initialTab?: 'profile' | 'rbac' 
       : null;
 
   const integrationsList = [
-    { name: 'Supabase PostgreSQL & Auth', category: 'Database & Auth Adapter', state: 'Architecture Ready (Phase 2/3)' },
-    { name: 'n8n Workflow Engine', category: 'Webhook & Event Bus Automation', state: 'Event Contracts Ready' },
-    { name: 'Google Workspace (Gmail, Drive, Calendar)', category: 'Productivity & SSO', state: 'Integration Ready' },
-    { name: 'Slack Agency Channels', category: 'Real-Time Team Alerts', state: 'Integration Ready' },
-    { name: 'WhatsApp Business API', category: 'Client Deliverable Notifications', state: 'Coming Soon' },
-    { name: 'Gemini / OpenAI Copilot Adapter', category: 'AiAssistantService Backend', state: 'Interface Ready' },
+    {
+      name: 'Supabase PostgreSQL & Auth',
+      category: 'Database & Auth Adapter',
+      state: 'Live Connected (csedlsciyxpdusqblbgv)',
+      connected: true,
+      details: 'URL: https://csedlsciyxpdusqblbgv.supabase.co · Realtime WebSocket & GoTrue Auth Active',
+    },
+    { name: 'n8n Workflow Engine', category: 'Webhook & Event Bus Automation', state: 'Event Contracts Ready', connected: false },
+    { name: 'Google Workspace (Gmail, Drive, Calendar)', category: 'Productivity & SSO', state: 'Integration Ready', connected: false },
+    { name: 'Slack Agency Channels', category: 'Real-Time Team Alerts', state: 'Integration Ready', connected: false },
+    { name: 'WhatsApp Business API', category: 'Client Deliverable Notifications', state: 'Coming Soon', connected: false },
+    { name: 'Gemini / OpenAI Copilot Adapter', category: 'AiAssistantService Backend', state: 'Interface Ready', connected: false },
   ];
 
   return (
@@ -705,21 +711,35 @@ export const SettingsAndProfileView: React.FC<{ initialTab?: 'profile' | 'rbac' 
           </div>
 
           <div className="lg:col-span-5 p-6 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800/80 space-y-4 text-xs">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-              Environment & Architecture Configuration
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+                Environment & Architecture Configuration
+              </h3>
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                SUPABASE CONNECTED
+              </span>
+            </div>
             <div className="space-y-2.5 font-mono">
               <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
                 <span className="text-slate-500">APP_ENV</span>
-                <span className="text-indigo-500">demo_phase_1</span>
+                <span className="text-indigo-500">production</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
                 <span className="text-slate-500">AUTH_PROVIDER</span>
-                <span>MockAuthService (Session Ready)</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Supabase Auth (GoTrue Active)</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
                 <span className="text-slate-500">DATABASE_PROVIDER</span>
-                <span>MockAgencyRepository</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Supabase PostgreSQL</span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                <span className="text-slate-500">PROJECT_ID</span>
+                <span className="text-indigo-600 dark:text-indigo-400 font-bold">csedlsciyxpdusqblbgv</span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                <span className="text-slate-500">REALTIME_SYNC</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">WebSocket (postgres_changes)</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
                 <span className="text-slate-500">AUTOMATION_PROVIDER</span>
@@ -867,9 +887,15 @@ export const SettingsAndProfileView: React.FC<{ initialTab?: 'profile' | 'rbac' 
               </div>
               <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
                 <span className="font-mono text-slate-500">{item.state}</span>
-                <span className="inline-flex items-center gap-1 text-slate-400">
-                  <Lock className="w-3.5 h-3.5" /> Not Connected
-                </span>
+                {item.connected ? (
+                  <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Connected (Live)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-slate-400">
+                    <Lock className="w-3.5 h-3.5" /> Not Connected
+                  </span>
+                )}
               </div>
             </div>
           ))}

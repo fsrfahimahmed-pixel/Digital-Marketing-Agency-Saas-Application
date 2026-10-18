@@ -5,6 +5,7 @@ import {
   List,
   Plus,
   Search,
+  Trash2,
 } from 'lucide-react';
 import { useAgency } from '../../context/AgencyContext';
 import { TODAY_STR } from '../../data/seedData';
@@ -34,6 +35,7 @@ export const TasksModuleView: React.FC = () => {
     openTaskDrawer,
     setQuickCreateOpen,
     updateTaskStatus,
+    deleteTask,
   } = useAgency();
 
   const [viewMode, setViewMode] = useState<'kanban' | 'list' | 'calendar'>('kanban');
@@ -230,9 +232,22 @@ export const TasksModuleView: React.FC = () => {
                         className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-500/50 cursor-pointer space-y-2 shadow-2xs"
                       >
                         <div className="flex items-center justify-between text-[11px] text-slate-500">
-                          <span className="font-mono font-semibold text-indigo-600 dark:text-indigo-400">
-                            {tsk.code}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-semibold text-indigo-600 dark:text-indigo-400">
+                              {tsk.code}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteTask(tsk.id);
+                              }}
+                              className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                              title="Delete task"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                           <PriorityText priority={tsk.priority} />
                         </div>
                         <div className="text-xs font-semibold text-slate-900 dark:text-white leading-snug">
@@ -279,7 +294,8 @@ export const TasksModuleView: React.FC = () => {
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4">Priority</th>
                 <th className="py-3 px-4">Hours</th>
-                <th className="py-3 px-5">Due Date</th>
+                <th className="py-3 px-4">Due Date</th>
+                <th className="py-3 px-5 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800/60 text-xs">
@@ -334,11 +350,21 @@ export const TasksModuleView: React.FC = () => {
                     <td className="py-3.5 px-4 font-mono tabular-nums">
                       {tsk.actualHours}h / {tsk.estimatedHours}h
                     </td>
-                    <td className="py-3.5 px-5 whitespace-nowrap">
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       <DueDateText
                         date={tsk.due_date}
                         completed={tsk.status === 'Completed'}
                       />
+                    </td>
+                    <td className="py-3.5 px-5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => deleteTask(tsk.id)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                        title="Delete Task"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 );
@@ -362,10 +388,23 @@ export const TasksModuleView: React.FC = () => {
                   </span>{' '}
                   · <strong className="text-slate-900 dark:text-white">{tsk.title}</strong>
                 </div>
-                <DueDateText
-                  date={tsk.due_date}
-                  completed={tsk.status === 'Completed'}
-                />
+                <div className="flex items-center gap-3">
+                  <DueDateText
+                    date={tsk.due_date}
+                    completed={tsk.status === 'Completed'}
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteTask(tsk.id);
+                    }}
+                    className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                    title="Delete Task"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             ))}
         </div>

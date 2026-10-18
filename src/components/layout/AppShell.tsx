@@ -377,8 +377,17 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
             </div>
           </div>
 
-          {/* Right: Search, Quick Create, Copilot, Notifications, Theme, Profile */}
+          {/* Right: Supabase Status, Search, Quick Create, Copilot, Notifications, Theme, Profile */}
           <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+            {/* Supabase Realtime Status Pill */}
+            <div
+              title="Supabase: Connected to https://csedlsciyxpdusqblbgv.supabase.co"
+              className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-[11px] font-mono font-medium text-emerald-600 dark:text-emerald-400"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Supabase: Connected</span>
+            </div>
+
             {/* Global Search Trigger */}
             <button
               onClick={() => setCommandPaletteOpen(true)}

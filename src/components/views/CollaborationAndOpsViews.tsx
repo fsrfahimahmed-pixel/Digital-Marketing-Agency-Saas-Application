@@ -675,10 +675,12 @@ export const CalendarAndTimeView: React.FC<{ initialMode?: 'calendar' | 'time' }
     logTimeEntry,
     setQuickCreateOpen,
     openProjectDetail,
+    deleteCalendarEvent,
   } = useAgency();
 
   const [tab, setTab] = useState<'calendar' | 'time'>(initialMode);
   const [calView, setCalView] = useState<'Agenda' | 'Week' | 'Month'>('Agenda');
+  const [eventToDeleteId, setEventToDeleteId] = useState<string | null>(null);
 
   // Timer state
   const [isTimerRunning, setTimerRunning] = useState(false);
@@ -808,13 +810,40 @@ export const CalendarAndTimeView: React.FC<{ initialMode?: 'calendar' | 'time' }
                     </h3>
                     {prj && <div className="text-xs text-slate-500">{prj.name}</div>}
                   </div>
-                  <span className="text-xs font-mono text-slate-500 shrink-0">
-                    {evt.timeLabel}
-                  </span>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-xs font-mono text-slate-500 shrink-0">
+                      {evt.timeLabel}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEventToDeleteId(evt.id);
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                      title="Delete Event"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
           </div>
+
+          <ConfirmModal
+            open={!!eventToDeleteId}
+            title="Delete Calendar Event"
+            description="Are you sure you want to remove this scheduled agency event from the calendar?"
+            confirmLabel="Delete Event"
+            onCancel={() => setEventToDeleteId(null)}
+            onConfirm={() => {
+              if (eventToDeleteId) {
+                deleteCalendarEvent(eventToDeleteId);
+                setEventToDeleteId(null);
+              }
+            }}
+          />
         </div>
       ) : (
         <div className="space-y-6">

@@ -9,6 +9,7 @@ import {
   Mail,
   Phone,
   Plus,
+  Trash2,
 } from 'lucide-react';
 import { useAgency } from '../../context/AgencyContext';
 import { formatCurrency } from '../../services/agencyServices';
@@ -33,6 +34,7 @@ export const LeadsAndClientsView: React.FC<{ mode: 'leads' | 'clients' }> = ({
   mode,
 }) => {
   const {
+    currentUser,
     snapshot,
     currency,
     selectedClientId,
@@ -41,6 +43,8 @@ export const LeadsAndClientsView: React.FC<{ mode: 'leads' | 'clients' }> = ({
     setQuickCreateOpen,
     updateLeadStatus,
     convertLeadToClient,
+    deleteClient,
+    deleteLead,
   } = useAgency();
 
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
@@ -148,8 +152,21 @@ export const LeadsAndClientsView: React.FC<{ mode: 'leads' | 'clients' }> = ({
                             {formatCurrency(lead.potentialValueBdt, currency)}
                           </span>
                         </div>
-                        <div className="font-bold text-slate-900 dark:text-white text-sm">
-                          {lead.company}
+                        <div className="flex items-center justify-between">
+                          <div className="font-bold text-slate-900 dark:text-white text-sm">
+                            {lead.company}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteLead(lead.id);
+                            }}
+                            className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                            title="Delete Lead"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                         <div className="text-slate-500">
                           {lead.name} · {lead.service}
@@ -261,7 +278,7 @@ export const LeadsAndClientsView: React.FC<{ mode: 'leads' | 'clients' }> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2.5 shrink-0">
             <div className="text-right">
               <div className="text-xs text-slate-500">Lifetime Contract Value</div>
               <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">
@@ -270,10 +287,21 @@ export const LeadsAndClientsView: React.FC<{ mode: 'leads' | 'clients' }> = ({
             </div>
             <button
               onClick={() => setQuickCreateOpen(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
             >
               <FolderPlus className="w-3.5 h-3.5" />
               <span>New Project</span>
+            </button>
+            <button
+              onClick={() => {
+                deleteClient(client.id);
+                openClientDetail(null);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-xs font-semibold transition-colors"
+              title="Delete Client Account"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete Client</span>
             </button>
           </div>
         </div>
@@ -397,9 +425,22 @@ export const LeadsAndClientsView: React.FC<{ mode: 'leads' | 'clients' }> = ({
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs text-slate-500">
                   <span>{cli.industry}</span>
-                  <span className="font-medium text-indigo-600 dark:text-indigo-400">
-                    {cli.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-indigo-600 dark:text-indigo-400">
+                      {cli.status}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteClient(cli.id);
+                      }}
+                      className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                      title="Delete Client"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white font-display">
                   {cli.company}

@@ -1,7 +1,14 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { TODAY_STR } from '../data/seedData';
-import { AgencyDatabaseSnapshot, agencyRepository } from '../repositories/agencyRepository';
+import {
+  AgencyDatabaseSnapshot,
+  agencyRepository,
+  getDeletedIds,
+  recordDeletedId,
+} from '../repositories/agencyRepository';
 import { PermissionService } from '../services/agencyServices';
+import { SupabaseService } from '../services/supabaseService';
+import { isSupabaseConfigured } from '../lib/supabase';
 import {
   AgencyFile,
   CalendarEvent,
@@ -29,6 +36,17 @@ export interface ToastMessage {
 }
 
 export type PublicScreen = 'home' | 'login';
+
+export const generateUUID = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
 
 interface CreateProjectInput {
   name: string;
@@ -87,7 +105,14 @@ interface AgencyContextValue {
   currentUser: User | null;
   publicScreen: PublicScreen;
   setPublicScreen: (screen: PublicScreen) => void;
-  loginWithCredentials: (email: string, password: string) => { ok: boolean; error?: string };
+  loginWithCredentials: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  signUpWithCredentials: (
+    email: string,
+    password: string,
+    name: string,
+    role?: Role,
+    title?: string
+  ) => Promise<{ ok: boolean; error?: string }>;
   quickSwitchRole: (role: Role) => void;
   logout: () => void;
   hasPermission: (permission: Permission) => boolean;
@@ -144,12 +169,15 @@ interface AgencyContextValue {
   reassignTask: (taskId: string, assignedTo: string) => void;
   toggleTaskChecklist: (taskId: string, checklistId: string) => void;
   addTaskComment: (taskId: string, content: string) => void;
+  deleteTask: (taskId: string) => void;
 
   createLead: (input: CreateLeadInput) => void;
   updateLeadStatus: (leadId: string, status: LeadStatus) => void;
   convertLeadToClient: (leadId: string) => Client | null;
+  deleteLead: (leadId: string) => void;
 
   createClient: (input: CreateClientInput) => Client;
+  deleteClient: (clientId: string) => void;
 
   decideApproval: (
     approvalId: string,
@@ -176,6 +204,7 @@ interface AgencyContextValue {
 
   logTimeEntry: (taskId: string, hours: number, description: string, date?: string) => void;
   createDepartment: (name: string, code: string, description: string, managerId: string, budgetBdt: number) => void;
+  deleteDepartment: (departmentId: string) => void;
   createTeamMember: (
     name: string,
     email: string,
@@ -183,6 +212,7 @@ interface AgencyContextValue {
     title: string,
     departmentId: string
   ) => void;
+  deleteTeamMember: (memberId: string) => void;
   createCalendarEvent: (
     title: string,
     category: CalendarEvent['category'],
@@ -191,6 +221,7 @@ interface AgencyContextValue {
     projectId?: string,
     visibility?: 'Internal' | 'Client-visible'
   ) => void;
+  deleteCalendarEvent: (eventId: string) => void;
   updateInvoiceStatus: (invoiceId: string, status: InvoiceStatus) => void;
 
   markNotificationRead: (id: string) => void;
@@ -272,6 +303,86 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentUser]);
 
+  // Supabase Session Restoration and Realtime Subscription
+  useEffect(() => {
+    let unsubscribeRealtime = () => {};
+
+    // 1. Restore real session on boot
+    SupabaseService.getCurrentSessionUser().then((user) => {
+      if (user) {
+        setCurrentUser(user);
+        try {
+          localStorage.setItem(SESSION_KEY, user.id);
+        } catch {
+          // ignore
+        }
+      }
+    });
+
+    // 2. Load database snapshot from Supabase if tables exist
+    SupabaseService.loadSnapshotFromSupabase().then((dbData) => {
+      if (dbData) {
+        const deleted = getDeletedIds();
+        setSnapshot((prev) => {
+          const supabaseTasks = (dbData.tasks || []).filter((t) => !deleted.has(t.id));
+          const supabaseTaskIds = new Set(supabaseTasks.map((t) => t.id));
+          const localOnlyTasks = prev.tasks.filter((t) => !deleted.has(t.id) && !supabaseTaskIds.has(t.id));
+          const mergedTasks = supabaseTasks.length > 0 ? [...localOnlyTasks, ...supabaseTasks] : prev.tasks.filter((t) => !deleted.has(t.id));
+
+          const supabaseProjects = (dbData.projects || []).filter((p) => !deleted.has(p.id));
+          const supabaseProjectIds = new Set(supabaseProjects.map((p) => p.id));
+          const localOnlyProjects = prev.projects.filter((p) => !deleted.has(p.id) && !supabaseProjectIds.has(p.id));
+          const mergedProjects = supabaseProjects.length > 0 ? [...localOnlyProjects, ...supabaseProjects] : prev.projects.filter((p) => !deleted.has(p.id));
+
+          const supabaseClients = (dbData.clients || []).filter((c) => !deleted.has(c.id));
+          const supabaseClientIds = new Set(supabaseClients.map((c) => c.id));
+          const localOnlyClients = prev.clients.filter((c) => !deleted.has(c.id) && !supabaseClientIds.has(c.id));
+          const mergedClients = supabaseClients.length > 0 ? [...localOnlyClients, ...supabaseClients] : prev.clients.filter((c) => !deleted.has(c.id));
+
+          const supabaseLeads = (dbData.leads || []).filter((l) => !deleted.has(l.id));
+          const supabaseLeadIds = new Set(supabaseLeads.map((l) => l.id));
+          const localOnlyLeads = prev.leads.filter((l) => !deleted.has(l.id) && !supabaseLeadIds.has(l.id));
+          const mergedLeads = supabaseLeads.length > 0 ? [...localOnlyLeads, ...supabaseLeads] : prev.leads.filter((l) => !deleted.has(l.id));
+
+          const next = {
+            ...prev,
+            projects: mergedProjects,
+            tasks: mergedTasks,
+            clients: mergedClients,
+            leads: mergedLeads,
+            messages: dbData.messages && dbData.messages.length > 0 ? dbData.messages : prev.messages,
+          };
+          agencyRepository.saveSnapshot(next);
+          return next;
+        });
+      }
+    });
+
+    // 3. Realtime subscription for multi-user chat and task sync
+    unsubscribeRealtime = SupabaseService.subscribeToRealtimeEvents(
+      (newMsg) => {
+        setSnapshot((prev) => {
+          if (prev.messages.some((m) => m.id === newMsg.id)) return prev;
+          return { ...prev, messages: [...prev.messages, newMsg] };
+        });
+      },
+      () => {
+        SupabaseService.loadSnapshotFromSupabase().then((data) => {
+          if (data?.tasks) setSnapshot((prev) => ({ ...prev, tasks: data.tasks! }));
+        });
+      },
+      () => {
+        SupabaseService.loadSnapshotFromSupabase().then((data) => {
+          if (data?.projects) setSnapshot((prev) => ({ ...prev, projects: data.projects! }));
+        });
+      }
+    );
+
+    return () => {
+      unsubscribeRealtime();
+    };
+  }, []);
+
   const addToast = (
     title: string,
     description?: string,
@@ -296,30 +407,62 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const loginWithCredentials = (email: string, password: string): { ok: boolean; error?: string } => {
+  const loginWithCredentials = async (
+    email: string,
+    password: string
+  ): Promise<{ ok: boolean; error?: string }> => {
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) {
       return { ok: false, error: 'Please enter a valid agency or client email address.' };
     }
     if (!password || password.length < 4) {
-      return { ok: false, error: 'Password must be at least 4 characters (demo password: demo1234).' };
+      return { ok: false, error: 'Password must be at least 4 characters.' };
     }
 
-    const matchedUser = snapshot.users.find(
-      (u) =>
-        u.email.toLowerCase() === cleanEmail ||
-        (u.altEmail && u.altEmail.toLowerCase() === cleanEmail)
-    );
+    let authenticatedUser: User | null = null;
 
-    if (!matchedUser) {
-      return {
-        ok: false,
-        error:
-          'Account not found. Use founder@demo-agency.com, manager@demo-agency.com, employee@demo-agency.com, or client@demo-agency.com.',
-      };
+    // First attempt real Supabase Auth
+    if (isSupabaseConfigured) {
+      const authResult = await SupabaseService.signInWithEmail(cleanEmail, password);
+      if (authResult.ok && authResult.user) {
+        authenticatedUser = authResult.user;
+      }
     }
 
-    setCurrentUser(matchedUser);
+    // If not found in Supabase Auth, check demo accounts or auto-provision
+    if (!authenticatedUser) {
+      const matchedLocal = snapshot.users.find(
+        (u) =>
+          u.email.toLowerCase() === cleanEmail ||
+          (u.altEmail && u.altEmail.toLowerCase() === cleanEmail)
+      );
+
+      if (matchedLocal) {
+        if (isSupabaseConfigured) {
+          try {
+            const autoSignUp = await SupabaseService.signUpWithEmail(
+              cleanEmail,
+              password,
+              matchedLocal.name,
+              matchedLocal.role,
+              matchedLocal.title
+            );
+            authenticatedUser = autoSignUp.ok && autoSignUp.user ? autoSignUp.user : matchedLocal;
+          } catch {
+            authenticatedUser = matchedLocal;
+          }
+        } else {
+          authenticatedUser = matchedLocal;
+        }
+      } else {
+        return {
+          ok: false,
+          error: 'Account not found. Please check your email and password or register a new account.',
+        };
+      }
+    }
+
+    setCurrentUser(authenticatedUser);
     setActiveNav('overview');
     setSelectedProjectId(null);
     setSelectedTaskId(null);
@@ -327,15 +470,59 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setSelectedEmployeeId(null);
 
     try {
-      localStorage.setItem(SESSION_KEY, matchedUser.id);
+      localStorage.setItem(SESSION_KEY, authenticatedUser.id);
     } catch {
       // ignore
     }
 
     addToast(
-      `Authenticated as ${matchedUser.name}`,
-      `Loaded ${matchedUser.role} portal workspace.`,
+      `Authenticated as ${authenticatedUser.name}`,
+      `Connected to Supabase (${authenticatedUser.role} Portal).`,
       'info'
+    );
+    return { ok: true };
+  };
+
+  const signUpWithCredentials = async (
+    email: string,
+    password: string,
+    name: string,
+    role: Role = 'EMPLOYEE',
+    title = 'Agency Specialist'
+  ): Promise<{ ok: boolean; error?: string }> => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !name.trim()) {
+      return { ok: false, error: 'Please provide full name and valid email address.' };
+    }
+    if (!password || password.length < 6) {
+      return { ok: false, error: 'Password must be at least 6 characters.' };
+    }
+
+    const regResult = await SupabaseService.signUpWithEmail(cleanEmail, password, name.trim(), role, title);
+    if (!regResult.ok || !regResult.user) {
+      return { ok: false, error: regResult.error || 'Registration failed.' };
+    }
+
+    const newUser = regResult.user;
+    setCurrentUser(newUser);
+    setActiveNav('overview');
+    try {
+      localStorage.setItem(SESSION_KEY, newUser.id);
+    } catch {
+      // ignore
+    }
+
+    commitSnapshot((db) => {
+      if (!db.users.some((u) => u.id === newUser.id)) {
+        db.users.unshift(newUser);
+      }
+      return db;
+    });
+
+    addToast(
+      'Account Created Successfully',
+      `Welcome to AgencyOS, ${newUser.name}!`,
+      'success'
     );
     return { ok: true };
   };
@@ -367,6 +554,7 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const logout = () => {
+    SupabaseService.signOut().catch(() => {});
     setCurrentUser(null);
     setPublicScreen('login');
     setSelectedProjectId(null);
@@ -424,7 +612,7 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // --- Business Logic Mutations ---
   const createProject = (input: CreateProjectInput): Project => {
-    const newId = `prj_${Date.now().toString(36)}`;
+    const newId = generateUUID();
     const codeNum = 101 + snapshot.projects.length;
     const finalCode = input.code?.trim() || `PRJ-${codeNum}`;
     const newProject: Project = {
@@ -462,7 +650,7 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const assignee =
             input.employee_ids[idx % Math.max(1, input.employee_ids.length)] || 'usr_emp_01';
           db.tasks.unshift({
-            id: `tsk_${Date.now()}_${idx}`,
+            id: generateUUID(),
             code: `TSK-${401 + db.tasks.length + idx}`,
             title: dt.title,
             description: `Generated from ${tpl.name} blueprint for ${input.name}.`,
@@ -478,8 +666,8 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             actualHours: 0,
             tags: dt.tags,
             checklist: [
-              { id: `chk_${Date.now()}_1`, text: 'Complete discovery & initial setup', completed: false },
-              { id: `chk_${Date.now()}_2`, text: 'Peer review & manager QA sign-off', completed: false },
+              { id: generateUUID(), text: 'Complete discovery & initial setup', completed: false },
+              { id: generateUUID(), text: 'Peer review & manager QA sign-off', completed: false },
             ],
             comments: [],
             created_by: currentUser?.id || 'usr_founder_01',
@@ -490,7 +678,7 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         tpl.defaultMilestones.forEach((msTitle, idx) => {
           db.milestones.push({
-            id: `ms_${Date.now()}_${idx}`,
+            id: generateUUID(),
             project_id: newId,
             title: msTitle,
             due_date: input.deadline,
@@ -528,6 +716,7 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     addToast('Project Created', `${newProject.code} · ${newProject.name} is now live.`);
+    SupabaseService.saveProject(newProject).catch(() => {});
     return newProject;
   };
 
@@ -583,6 +772,7 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!silent) {
       addToast('Project Progress Updated', `Set completion to ${bounded}%.`);
     }
+    SupabaseService.updateProjectProgress(projectId, bounded).catch(() => {});
   };
 
   const resetProjectProgress = (projectId: string) => {
@@ -691,17 +881,21 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const deleteProject = (projectId: string) => {
+    recordDeletedId(projectId);
+    let prjToDelete: Project | undefined;
     commitSnapshot((db) => {
-      const prj = db.projects.find((p) => p.id === projectId);
+      prjToDelete = db.projects.find((p) => p.id === projectId);
       db.projects = db.projects.filter((p) => p.id !== projectId);
+      const tasksToRemove = db.tasks.filter((t) => t.project_id === projectId);
+      tasksToRemove.forEach((t) => recordDeletedId(t.id));
       db.tasks = db.tasks.filter((t) => t.project_id !== projectId);
-      if (prj) {
+      if (prjToDelete) {
         db.activities.unshift({
-          id: `act_${Date.now()}`,
+          id: generateUUID(),
           actor_id: currentUser?.id || 'usr_founder_01',
           action: 'archived & removed project',
           targetType: 'Project',
-          targetName: prj.name,
+          targetName: prjToDelete.name,
           visibility: 'Internal',
           created_at: `${TODAY_STR} 11:40`,
         });
@@ -711,20 +905,56 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (selectedProjectId === projectId) {
       setSelectedProjectId(null);
     }
-    addToast('Project Removed', 'Project and associated tasks were removed.', 'warning');
+    SupabaseService.deleteProject(projectId, prjToDelete?.code).catch(() => {});
+    addToast('Project Removed', `Project ${prjToDelete?.code || ''} and its tasks were removed.`, 'warning');
   };
 
   const createTask = (input: CreateTaskInput): Task => {
-    const project = snapshot.projects.find((p) => p.id === input.project_id) || snapshot.projects[0];
+    let project = snapshot.projects.find((p) => p.id === input.project_id) || snapshot.projects[0];
+    let createdFallbackProject: Project | null = null;
+
+    if (!project) {
+      // If there are no projects in the workspace, auto-create a default operations project
+      const fallbackClientId = snapshot.clients[0]?.id || 'cli_001';
+      const fallbackDeptId = snapshot.departments[0]?.id || 'dept_001';
+      const fallbackManagerId =
+        snapshot.users.find((u) => u.role === 'MANAGER' || u.role === 'FOUNDER')?.id ||
+        currentUser?.id ||
+        'usr_founder_01';
+
+      createdFallbackProject = {
+        id: generateUUID(),
+        name: 'General Agency Operations',
+        code: 'PRJ-101',
+        description: 'Agency sprint tasks and client execution workspace',
+        objectives: ['Complete delivery sprints on schedule', 'Maintain client satisfaction'],
+        client_id: fallbackClientId,
+        department_id: fallbackDeptId,
+        manager_id: fallbackManagerId,
+        employee_ids: [input.assigned_to || currentUser?.id || 'usr_emp_01'],
+        status: 'Active',
+        priority: 'High',
+        projectType: 'General Retainer',
+        budgetBdt: 150000,
+        spentBdt: 0,
+        start_date: TODAY_STR,
+        deadline: '2026-12-31',
+        created_at: TODAY_STR,
+        updated_at: TODAY_STR,
+        transferHistory: [],
+      };
+      project = createdFallbackProject;
+    }
+
     const newTask: Task = {
-      id: `tsk_${Date.now()}`,
+      id: generateUUID(),
       code: `TSK-${401 + snapshot.tasks.length}`,
       title: input.title,
       description: input.description,
       project_id: project.id,
       client_id: project.client_id,
       department_id: project.department_id,
-      assigned_to: input.assigned_to,
+      assigned_to: input.assigned_to || currentUser?.id || 'usr_emp_01',
       assigned_manager_id: project.manager_id,
       priority: input.priority,
       status: 'To Do',
@@ -733,8 +963,8 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       actualHours: 0,
       tags: input.tags.length > 0 ? input.tags : ['Execution'],
       checklist: [
-        { id: `chk_${Date.now()}_a`, text: 'Review brief & specifications', completed: false },
-        { id: `chk_${Date.now()}_b`, text: 'Submit deliverable for QA review', completed: false },
+        { id: generateUUID(), text: 'Review brief & specifications', completed: false },
+        { id: generateUUID(), text: 'Submit deliverable for QA review', completed: false },
       ],
       comments: [],
       created_by: currentUser?.id || 'usr_mgr_01',
@@ -743,13 +973,16 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     commitSnapshot((db) => {
+      if (createdFallbackProject) {
+        db.projects.unshift(createdFallbackProject);
+      }
       db.tasks.unshift(newTask);
       const prj = db.projects.find((p) => p.id === project.id);
-      if (prj && !prj.employee_ids.includes(input.assigned_to)) {
-        prj.employee_ids.push(input.assigned_to);
+      if (prj && !prj.employee_ids.includes(newTask.assigned_to)) {
+        prj.employee_ids.push(newTask.assigned_to);
       }
 
-      const assignee = db.users.find((u) => u.id === input.assigned_to);
+      const assignee = db.users.find((u) => u.id === newTask.assigned_to);
       db.activities.unshift({
         id: `act_${Date.now()}`,
         actor_id: currentUser?.id || 'usr_mgr_01',
@@ -764,7 +997,7 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       db.notifications.unshift({
         id: `ntf_${Date.now()}`,
-        user_id: input.assigned_to,
+        user_id: newTask.assigned_to,
         type: 'TASK_ASSIGNED',
         title: `New Task Assigned: ${newTask.code}`,
         description: `${newTask.title} (Due ${newTask.due_date})`,
@@ -776,7 +1009,12 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return db;
     });
 
+    if (createdFallbackProject) {
+      SupabaseService.saveProject(createdFallbackProject).catch(() => {});
+    }
+
     addToast('Task Assigned', `${newTask.code} assigned and synced to specialist queue.`);
+    SupabaseService.saveTask(newTask).catch(() => {});
     return newTask;
   };
 
@@ -869,26 +1107,55 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     addToast('Comment Added', 'Posted to task activity thread.');
   };
 
-  const createLead = (input: CreateLeadInput) => {
+  const deleteTask = (taskId: string) => {
+    recordDeletedId(taskId);
+    let taskToDelete: Task | undefined;
     commitSnapshot((db) => {
-      const newLead: Lead = {
-        id: `ld_${Date.now()}`,
-        name: input.name,
-        company: input.company,
-        email: input.email,
-        phone: input.phone,
-        source: input.source,
-        service: input.service,
-        potentialValueBdt: input.potentialValueBdt,
-        status: 'New',
-        assigned_manager_id: input.assigned_manager_id,
-        created_at: TODAY_STR,
-        last_contact: TODAY_STR,
-        notes: input.notes,
-      };
+      taskToDelete = db.tasks.find((t) => t.id === taskId);
+      db.tasks = db.tasks.filter((t) => t.id !== taskId);
+      if (taskToDelete) {
+        db.activities.unshift({
+          id: generateUUID(),
+          actor_id: currentUser?.id || 'usr_founder_01',
+          action: 'deleted task',
+          targetType: 'Task',
+          targetName: taskToDelete.title,
+          project_id: taskToDelete.project_id,
+          client_id: taskToDelete.client_id,
+          visibility: 'Internal',
+          created_at: `${TODAY_STR} 12:00`,
+        });
+      }
+      return db;
+    });
+    if (selectedTaskId === taskId) {
+      setSelectedTaskId(null);
+    }
+    SupabaseService.deleteTask(taskId, taskToDelete?.code).catch(() => {});
+    addToast('Task Deleted', `Task ${taskToDelete?.code || ''} removed from workspace & database.`, 'warning');
+  };
+
+  const createLead = (input: CreateLeadInput) => {
+    const newLead: Lead = {
+      id: generateUUID(),
+      name: input.name,
+      company: input.company,
+      email: input.email,
+      phone: input.phone,
+      source: input.source,
+      service: input.service,
+      potentialValueBdt: input.potentialValueBdt,
+      status: 'New',
+      assigned_manager_id: input.assigned_manager_id,
+      created_at: TODAY_STR,
+      last_contact: TODAY_STR,
+      notes: input.notes,
+    };
+
+    commitSnapshot((db) => {
       db.leads.unshift(newLead);
       db.activities.unshift({
-        id: `act_${Date.now()}`,
+        id: generateUUID(),
         actor_id: currentUser?.id || 'usr_founder_01',
         action: 'added new CRM lead',
         targetType: 'Lead',
@@ -899,6 +1166,7 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return db;
     });
     addToast('Lead Added to Pipeline', `${input.company} entered CRM pipeline.`);
+    SupabaseService.saveLead(newLead).catch(() => {});
   };
 
   const updateLeadStatus = (leadId: string, status: LeadStatus) => {
@@ -908,7 +1176,7 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         lead.status = status;
         lead.last_contact = TODAY_STR;
         db.activities.unshift({
-          id: `act_${Date.now()}`,
+          id: generateUUID(),
           actor_id: currentUser?.id || 'usr_mgr_01',
           action: `moved lead stage to ${status}`,
           targetType: 'Lead',
@@ -927,7 +1195,7 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!lead) return null;
 
     const newClient: Client = {
-      id: `cli_${Date.now()}`,
+      id: generateUUID(),
       name: lead.name,
       company: lead.company,
       email: lead.email,
@@ -947,7 +1215,7 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       db.clients.unshift(newClient);
 
       db.activities.unshift({
-        id: `act_${Date.now()}`,
+        id: generateUUID(),
         actor_id: currentUser?.id || 'usr_founder_01',
         action: 'converted Won Lead into Active Client',
         targetType: 'Client',
@@ -960,12 +1228,36 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     addToast('Lead Converted to Client', `${newClient.company} is now an active agency client!`);
+    SupabaseService.saveClient(newClient).catch(() => {});
     return newClient;
+  };
+
+  const deleteLead = (leadId: string) => {
+    recordDeletedId(leadId);
+    let leadToDelete: Lead | undefined;
+    commitSnapshot((db) => {
+      leadToDelete = db.leads.find((l) => l.id === leadId);
+      db.leads = db.leads.filter((l) => l.id !== leadId);
+      if (leadToDelete) {
+        db.activities.unshift({
+          id: generateUUID(),
+          actor_id: currentUser?.id || 'usr_founder_01',
+          action: 'removed CRM lead',
+          targetType: 'Lead',
+          targetName: leadToDelete.company,
+          visibility: 'Internal',
+          created_at: `${TODAY_STR} 12:20`,
+        });
+      }
+      return db;
+    });
+    SupabaseService.deleteLead(leadId, leadToDelete?.company).catch(() => {});
+    addToast('Lead Removed', `${leadToDelete?.company || 'Lead'} removed from pipeline & database.`, 'info');
   };
 
   const createClient = (input: CreateClientInput): Client => {
     const newClient: Client = {
-      id: `cli_${Date.now()}`,
+      id: generateUUID(),
       name: input.name,
       company: input.company,
       email: input.email,
@@ -982,7 +1274,7 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     commitSnapshot((db) => {
       db.clients.unshift(newClient);
       db.activities.unshift({
-        id: `act_${Date.now()}`,
+        id: generateUUID(),
         actor_id: currentUser?.id || 'usr_founder_01',
         action: 'onboarded new client organization',
         targetType: 'Client',
@@ -995,7 +1287,47 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     addToast('Client Onboarded', `${newClient.company} added to active directory.`);
+    SupabaseService.saveClient(newClient).catch(() => {});
     return newClient;
+  };
+
+  const deleteClient = (clientId: string) => {
+    recordDeletedId(clientId);
+    let clientToDelete: Client | undefined;
+    commitSnapshot((db) => {
+      clientToDelete = db.clients.find((c) => c.id === clientId);
+      db.clients = db.clients.filter((c) => c.id !== clientId);
+      // Remove associated projects and their tasks
+      const deletedProjectIds = new Set(
+        db.projects.filter((p) => p.client_id === clientId).map((p) => p.id)
+      );
+      deletedProjectIds.forEach((pid) => recordDeletedId(pid));
+      db.projects = db.projects.filter((p) => p.client_id !== clientId);
+      const tasksToRemove = db.tasks.filter(
+        (t) => t.client_id === clientId || deletedProjectIds.has(t.project_id)
+      );
+      tasksToRemove.forEach((t) => recordDeletedId(t.id));
+      db.tasks = db.tasks.filter(
+        (t) => t.client_id !== clientId && !deletedProjectIds.has(t.project_id)
+      );
+      if (clientToDelete) {
+        db.activities.unshift({
+          id: generateUUID(),
+          actor_id: currentUser?.id || 'usr_founder_01',
+          action: 'removed client account',
+          targetType: 'Client',
+          targetName: clientToDelete.company,
+          visibility: 'Internal',
+          created_at: `${TODAY_STR} 12:25`,
+        });
+      }
+      return db;
+    });
+    if (selectedClientId === clientId) {
+      setSelectedClientId(null);
+    }
+    SupabaseService.deleteClient(clientId, clientToDelete?.company).catch(() => {});
+    addToast('Client Removed', `${clientToDelete?.company || 'Client'} removed from directory & database.`, 'warning');
   };
 
   const decideApproval = (
@@ -1070,10 +1402,14 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!content.trim()) return;
     commitSnapshot((db) => {
       const prj = db.projects.find((p) => p.id === projectId) || db.projects[0];
+      const prjId = prj?.id || projectId || 'prj_general';
+      const prjClientId = prj?.client_id || snapshot.clients[0]?.id || 'cli_001';
+      const prjName = prj?.name || 'Workspace';
+
       db.messages.push({
         id: `msg_${Date.now()}`,
-        project_id: prj.id,
-        client_id: prj.client_id,
+        project_id: prjId,
+        client_id: prjClientId,
         sender_id: currentUser?.id || 'usr_founder_01',
         channel: visibility === 'Internal' ? 'Internal Team' : channel,
         visibility,
@@ -1092,9 +1428,9 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             ? 'posted message in Client Thread'
             : 'posted internal team note',
         targetType: 'Project',
-        targetName: prj.name,
-        project_id: prj.id,
-        client_id: prj.client_id,
+        targetName: prjName,
+        project_id: prjId,
+        client_id: prjClientId,
         visibility: visibility === 'Client-visible' ? 'Client-safe' : 'Internal',
         created_at: `${TODAY_STR} 12:30`,
       });
@@ -1102,6 +1438,20 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return db;
     });
     addToast('Message Sent', visibility === 'Internal' ? 'Posted to internal team channel.' : 'Delivered to client thread.');
+    const targetPrj = snapshot.projects.find((p) => p.id === projectId) || snapshot.projects[0];
+    SupabaseService.saveMessage({
+      id: `msg_${Date.now()}`,
+      project_id: targetPrj?.id || projectId,
+      client_id: targetPrj?.client_id || '',
+      sender_id: currentUser?.id || 'usr_founder_01',
+      channel: visibility === 'Internal' ? 'Internal Team' : channel,
+      visibility,
+      content: content.trim(),
+      mentions: [],
+      attachments: [],
+      unreadBy: [],
+      created_at: new Date().toISOString(),
+    }).catch(() => {});
   };
 
   const uploadFile = (
@@ -1113,11 +1463,13 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   ) => {
     commitSnapshot((db) => {
       const prj = db.projects.find((p) => p.id === projectId) || db.projects[0];
+      const prjId = prj?.id || projectId || 'prj_general';
+      const prjClientId = prj?.client_id || snapshot.clients[0]?.id || 'cli_001';
       const ext = name.split('.').pop()?.toUpperCase() || 'PDF';
       const newFile: AgencyFile = {
         id: `fil_${Date.now()}`,
-        project_id: prj.id,
-        client_id: prj.client_id,
+        project_id: prjId,
+        client_id: prjClientId,
         name,
         fileType: ext,
         sizeLabel,
@@ -1134,8 +1486,8 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         action: `uploaded ${category.toLowerCase()} asset`,
         targetType: 'File',
         targetName: name,
-        project_id: prj.id,
-        client_id: prj.client_id,
+        project_id: prjId,
+        client_id: prjClientId,
         visibility: visibility === 'Client-visible' ? 'Client-safe' : 'Internal',
         created_at: `${TODAY_STR} 12:35`,
       });
@@ -1166,6 +1518,7 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const logTimeEntry = (taskId: string, hours: number, description: string, date = TODAY_STR) => {
     commitSnapshot((db) => {
       const task = db.tasks.find((t) => t.id === taskId) || db.tasks[0];
+      if (!task) return db;
       task.actualHours = Math.round((task.actualHours + hours) * 10) / 10;
       db.timeEntries.unshift({
         id: `tme_${Date.now()}`,
@@ -1188,20 +1541,51 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     managerId: string,
     budgetBdt: number
   ) => {
+    const newDept: Department = {
+      id: generateUUID(),
+      name,
+      code: code.toUpperCase(),
+      description,
+      manager_id: managerId,
+      monthlyBudgetBdt: budgetBdt,
+      created_at: TODAY_STR,
+    };
     commitSnapshot((db) => {
-      const newDept: Department = {
-        id: `dept_${Date.now()}`,
-        name,
-        code: code.toUpperCase(),
-        description,
-        manager_id: managerId,
-        monthlyBudgetBdt: budgetBdt,
-        created_at: TODAY_STR,
-      };
       db.departments.push(newDept);
       return db;
     });
+    SupabaseService.saveDepartment(newDept).catch(() => {});
     addToast('Department Created', `${name} (${code.toUpperCase()}) is now active.`);
+  };
+
+  const deleteDepartment = (departmentId: string) => {
+    recordDeletedId(departmentId);
+    let deptToDelete: Department | undefined;
+    commitSnapshot((db) => {
+      deptToDelete = db.departments.find((d) => d.id === departmentId);
+      db.departments = db.departments.filter((d) => d.id !== departmentId);
+      const fallbackDeptId = db.departments[0]?.id || 'dept_001';
+      db.users = db.users.map((u) =>
+        u.department_id === departmentId ? { ...u, department_id: fallbackDeptId } : u
+      );
+      db.projects = db.projects.map((p) =>
+        p.department_id === departmentId ? { ...p, department_id: fallbackDeptId } : p
+      );
+      if (deptToDelete) {
+        db.activities.unshift({
+          id: generateUUID(),
+          actor_id: currentUser?.id || 'usr_founder_01',
+          action: 'removed department',
+          targetType: 'Team',
+          targetName: deptToDelete.name,
+          visibility: 'Internal',
+          created_at: `${TODAY_STR} 12:45`,
+        });
+      }
+      return db;
+    });
+    SupabaseService.deleteDepartment(departmentId, deptToDelete?.code).catch(() => {});
+    addToast('Department Deleted', `${deptToDelete?.name || 'Department'} removed from organization & database.`, 'warning');
   };
 
   const createTeamMember = (
@@ -1217,10 +1601,11 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       .join('')
       .toUpperCase()
       .slice(0, 2);
+    let newUser: User;
     commitSnapshot((db) => {
       const dept = db.departments.find((d) => d.id === departmentId);
-      const newUser: User = {
-        id: `usr_${Date.now()}`,
+      newUser = {
+        id: generateUUID(),
         name,
         email,
         phone: '+880 1711-000000',
@@ -1238,7 +1623,7 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       };
       db.users.push(newUser);
       db.activities.unshift({
-        id: `act_${Date.now()}`,
+        id: generateUUID(),
         actor_id: currentUser?.id || 'usr_founder_01',
         action: `added new ${role.toLowerCase()} to agency roster`,
         targetType: 'Team',
@@ -1248,7 +1633,45 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
       return db;
     });
+    if (newUser!) {
+      SupabaseService.saveMember(newUser).catch(() => {});
+    }
     addToast('Team Member Added', `${name} joined as ${title}.`);
+  };
+
+  const deleteTeamMember = (memberId: string) => {
+    recordDeletedId(memberId);
+    let memberToDelete: User | undefined;
+    commitSnapshot((db) => {
+      memberToDelete = db.users.find((u) => u.id === memberId);
+      db.users = db.users.filter((u) => u.id !== memberId);
+      const fallbackAssignee =
+        db.users.find((u) => u.role === 'FOUNDER' || u.role === 'MANAGER')?.id || 'usr_founder_01';
+      db.tasks = db.tasks.map((t) =>
+        t.assigned_to === memberId ? { ...t, assigned_to: fallbackAssignee } : t
+      );
+      db.projects = db.projects.map((p) => ({
+        ...p,
+        employee_ids: p.employee_ids.filter((id) => id !== memberId),
+      }));
+      if (memberToDelete) {
+        db.activities.unshift({
+          id: generateUUID(),
+          actor_id: currentUser?.id || 'usr_founder_01',
+          action: 'removed team member',
+          targetType: 'Team',
+          targetName: memberToDelete.name,
+          visibility: 'Internal',
+          created_at: `${TODAY_STR} 12:50`,
+        });
+      }
+      return db;
+    });
+    if (selectedEmployeeId === memberId) {
+      setSelectedEmployeeId(null);
+    }
+    SupabaseService.deleteMember(memberId, memberToDelete?.email).catch(() => {});
+    addToast('Member Removed', `${memberToDelete?.name || 'Member'} removed from agency roster & database.`, 'warning');
   };
 
   const createCalendarEvent = (
@@ -1259,10 +1682,11 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     projectId?: string,
     visibility: 'Internal' | 'Client-visible' = 'Internal'
   ) => {
+    let newEvt: CalendarEvent;
     commitSnapshot((db) => {
       const prj = projectId ? db.projects.find((p) => p.id === projectId) : undefined;
-      db.calendarEvents.push({
-        id: `cal_${Date.now()}`,
+      newEvt = {
+        id: generateUUID(),
         title,
         category,
         date,
@@ -1271,10 +1695,26 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         client_id: prj?.client_id,
         visibility,
         attendee_ids: [currentUser?.id || 'usr_founder_01'],
-      });
+      };
+      db.calendarEvents.push(newEvt);
       return db;
     });
+    if (newEvt!) {
+      SupabaseService.saveCalendarEvent(newEvt).catch(() => {});
+    }
     addToast('Calendar Event Scheduled', `${title} scheduled for ${date}.`);
+  };
+
+  const deleteCalendarEvent = (eventId: string) => {
+    recordDeletedId(eventId);
+    let eventToDelete: CalendarEvent | undefined;
+    commitSnapshot((db) => {
+      eventToDelete = db.calendarEvents.find((e) => e.id === eventId);
+      db.calendarEvents = db.calendarEvents.filter((e) => e.id !== eventId);
+      return db;
+    });
+    SupabaseService.deleteCalendarEvent(eventId, eventToDelete?.title).catch(() => {});
+    addToast('Event Removed', 'Calendar event removed from schedule & database.', 'info');
   };
 
   const updateInvoiceStatus = (invoiceId: string, status: InvoiceStatus) => {
@@ -1319,6 +1759,7 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         publicScreen,
         setPublicScreen,
         loginWithCredentials,
+        signUpWithCredentials,
         quickSwitchRole,
         logout,
         hasPermission,
@@ -1359,10 +1800,13 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         reassignTask,
         toggleTaskChecklist,
         addTaskComment,
+        deleteTask,
         createLead,
         updateLeadStatus,
         convertLeadToClient,
+        deleteLead,
         createClient,
+        deleteClient,
         decideApproval,
         sendMessage,
         uploadFile,
@@ -1370,8 +1814,11 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         deleteFile,
         logTimeEntry,
         createDepartment,
+        deleteDepartment,
         createTeamMember,
+        deleteTeamMember,
         createCalendarEvent,
+        deleteCalendarEvent,
         updateInvoiceStatus,
         markNotificationRead,
         markAllNotificationsRead,

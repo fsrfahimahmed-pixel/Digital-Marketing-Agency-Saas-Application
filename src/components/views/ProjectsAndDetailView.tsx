@@ -69,6 +69,7 @@ export const ProjectsAndDetailView: React.FC = () => {
     transferProject,
     updateProjectTeam,
     deleteProject,
+    deleteTask,
     decideApproval,
     sendMessage,
     uploadFile,
@@ -549,12 +550,23 @@ export const ProjectsAndDetailView: React.FC = () => {
                         {tsk.title}
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 shrink-0 text-xs">
+                    <div className="flex items-center gap-3 shrink-0 text-xs">
                       <span className="text-slate-500">{assignee?.name}</span>
                       <DueDateText
                         date={tsk.due_date}
                         completed={tsk.status === 'Completed'}
                       />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteTask(tsk.id);
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                        title="Delete Task"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 );

@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import {
+  AlertTriangle,
   CheckCircle2,
   Circle,
   Clock,
   ExternalLink,
   MessageSquare,
   Send,
+  Trash2,
   X,
 } from 'lucide-react';
 import { useAgency } from '../../context/AgencyContext';
@@ -31,6 +33,7 @@ export const TaskDetailDrawer: React.FC = () => {
     reassignTask,
     toggleTaskChecklist,
     addTaskComment,
+    deleteTask,
     logTimeEntry,
     openProjectDetail,
   } = useAgency();
@@ -38,6 +41,7 @@ export const TaskDetailDrawer: React.FC = () => {
   const [commentText, setCommentText] = useState('');
   const [logHours, setLogHours] = useState(1.5);
   const [logNote, setLogNote] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   if (!selectedTaskId || !currentUser) return null;
 
@@ -92,13 +96,59 @@ export const TaskDetailDrawer: React.FC = () => {
             <span aria-hidden="true">·</span>
             <PriorityText priority={task.priority} />
           </div>
-          <button
-            onClick={() => openTaskDrawer(null)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 dark:hover:text-rose-400 transition-colors"
+              title="Delete Task"
+              aria-label="Delete Task"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => openTaskDrawer(null)}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
+
+        {/* Delete Confirmation Banner */}
+        {showDeleteConfirm && (
+          <div className="mx-6 mt-4 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex flex-col gap-2.5">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <span className="font-bold text-rose-800 dark:text-rose-300">
+                  Delete task {task.code}?
+                </span>
+                <p className="text-rose-700 dark:text-rose-400 mt-0.5">
+                  This will permanently remove "{task.title}" and its checklist items from the workspace.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteTask(task.id);
+                  openTaskDrawer(null);
+                }}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 shadow-2xs"
+              >
+                Yes, Delete Task
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Scrollable Workspace Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -316,6 +366,22 @@ export const TaskDetailDrawer: React.FC = () => {
                 <Send className="w-3.5 h-3.5" />
               </button>
             </form>
+          </div>
+
+          {/* Task Management Danger Zone */}
+          <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <div>
+              <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">Task Management</div>
+              <div className="text-[11px] text-slate-400">Permanently delete this task and clean up references</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-900/80 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete Task</span>
+            </button>
           </div>
         </div>
       </div>

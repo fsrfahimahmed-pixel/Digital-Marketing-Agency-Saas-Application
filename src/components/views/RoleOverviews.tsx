@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
+  Building2,
   Check,
   CheckCircle2,
+  CheckSquare,
   Clock,
   FileCheck2,
   FolderKanban,
@@ -16,6 +18,8 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
+  Trash2,
+  Users,
 } from 'lucide-react';
 import { useAgency } from '../../context/AgencyContext';
 import { TODAY_STR } from '../../data/seedData';
@@ -29,6 +33,7 @@ import { ApprovalItem, Project, Task } from '../../types/domain';
 import { HorizontalDistributionBar, InteractiveAreaChart } from '../ui/Charts';
 import {
   AvatarCircle,
+  ConfirmModal,
   DueDateText,
   HealthIndicator,
   KpiCard,
@@ -303,10 +308,35 @@ export const RoleOverviews: React.FC = () => {
     updateProjectProgress,
     resetProjectProgress,
     decideApproval,
+    deleteTask,
+    deleteClient,
+    deleteTeamMember,
+    deleteProject,
   } = useAgency();
 
   const [revisionModalApprovalId, setRevisionModalApprovalId] = useState<string | null>(null);
   const [revisionComment, setRevisionComment] = useState('');
+
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: 'project' | 'task' | 'client' | 'member';
+    id: string;
+    title: string;
+    description: string;
+  } | null>(null);
+
+  const handleExecuteDelete = () => {
+    if (!deleteTarget) return;
+    if (deleteTarget.type === 'project') {
+      deleteProject(deleteTarget.id);
+    } else if (deleteTarget.type === 'client') {
+      deleteClient(deleteTarget.id);
+    } else if (deleteTarget.type === 'member') {
+      deleteTeamMember(deleteTarget.id);
+    } else if (deleteTarget.type === 'task') {
+      deleteTask(deleteTarget.id);
+    }
+    setDeleteTarget(null);
+  };
 
   if (!currentUser) return null;
 
@@ -395,22 +425,36 @@ export const RoleOverviews: React.FC = () => {
           title="Good morning. Here’s the state of your agency."
           subtitle="Executive command center across client retainers, delivery health, specialist capacity, and monthly financial velocity."
           actions={
-            <>
+            <div className="flex flex-wrap items-center gap-2">
               <button
-                onClick={() => setCopilotOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap"
+                onClick={() => setQuickCreateOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap"
               >
-                <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                <span>Agency Copilot</span>
+                <Building2 className="w-3.5 h-3.5 text-indigo-500" />
+                <span>+ Add Client</span>
               </button>
               <button
                 onClick={() => setQuickCreateOpen(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap"
+              >
+                <Users className="w-3.5 h-3.5 text-teal-500" />
+                <span>+ Add Employee</span>
+              </button>
+              <button
+                onClick={() => setQuickCreateOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap"
+              >
+                <CheckSquare className="w-3.5 h-3.5 text-violet-500" />
+                <span>+ New Task</span>
+              </button>
+              <button
+                onClick={() => setQuickCreateOpen(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors whitespace-nowrap shadow-2xs"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Create Project</span>
               </button>
-            </>
+            </div>
           }
         />
 
@@ -610,7 +654,8 @@ export const RoleOverviews: React.FC = () => {
                   <th className="py-3 px-4">Health Score</th>
                   <th className="py-3 px-4">Progress</th>
                   <th className="py-3 px-4">Deadline</th>
-                  <th className="py-3 px-5 text-right">Budget</th>
+                  <th className="py-3 px-4 text-right">Budget</th>
+                  <th className="py-3 px-5 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800/60 text-xs">
@@ -673,8 +718,25 @@ export const RoleOverviews: React.FC = () => {
                           completed={project.status === 'Completed'}
                         />
                       </td>
-                      <td className="py-3.5 px-5 text-right font-mono tabular-nums font-medium text-slate-900 dark:text-white whitespace-nowrap">
+                      <td className="py-3.5 px-4 text-right font-mono tabular-nums font-medium text-slate-900 dark:text-white whitespace-nowrap">
                         {formatCurrency(project.budgetBdt, currency)}
+                      </td>
+                      <td className="py-3.5 px-5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeleteTarget({
+                              type: 'project',
+                              id: project.id,
+                              title: `Delete Project: ${project.name}`,
+                              description: `Are you sure you want to permanently delete "${project.name}" (${project.code})? All associated sprint tasks and activities will also be removed from the database.`,
+                            });
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                          title="Delete Project"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                   );
@@ -788,6 +850,222 @@ export const RoleOverviews: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Founder Direct Entity Management: Clients, Employees & Tasks */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Client Accounts & Retainers Management */}
+          <div className="p-6 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800/80 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-indigo-500" />
+                  <span>Client Accounts ({snapshot.clients.length})</span>
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Manage active client retainers or add new client organizations
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuickCreateOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Add Client</span>
+              </button>
+            </div>
+            <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+              {snapshot.clients.map((cli) => {
+                const prjCount = snapshot.projects.filter((p) => p.client_id === cli.id).length;
+                return (
+                  <div
+                    key={cli.id}
+                    className="p-3 rounded-lg border border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between gap-3 text-xs bg-slate-50/50 dark:bg-slate-950/40"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900 dark:text-white truncate">
+                          {cli.company}
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200/40">
+                          {cli.status}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+                        {cli.name} · {cli.industry} · {prjCount} Projects · {formatCurrency(cli.totalValueBdt, currency)}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeleteTarget({
+                          type: 'client',
+                          id: cli.id,
+                          title: `Delete Client: ${cli.company}`,
+                          description: `Are you sure you want to delete client account "${cli.company}"? All associated project workspaces and tasks will be cleaned up from the database.`,
+                        });
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                      title="Delete Client"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Team Specialists & Employee Management */}
+          <div className="p-6 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800/80 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Users className="w-4 h-4 text-teal-500" />
+                  <span>Team Specialists ({employees.length})</span>
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Manage agency delivery specialists or onboard new team members
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuickCreateOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold transition-colors shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Add Employee</span>
+              </button>
+            </div>
+            <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+              {employees.map((emp) => {
+                const dept = snapshot.departments.find((d) => d.id === emp.department_id);
+                const taskCount = snapshot.tasks.filter((t) => t.assigned_to === emp.id && t.status !== 'Completed').length;
+                return (
+                  <div
+                    key={emp.id}
+                    className="p-3 rounded-lg border border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between gap-3 text-xs bg-slate-50/50 dark:bg-slate-950/40"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <AvatarCircle
+                        initials={emp.avatarInitials}
+                        colorClass={emp.avatarColor}
+                        size="xs"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-slate-900 dark:text-white truncate">
+                          {emp.name}
+                        </div>
+                        <div className="text-[11px] text-slate-500 truncate">
+                          {emp.title} · {dept?.name || 'Operations'} · {taskCount} active tasks
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeleteTarget({
+                          type: 'member',
+                          id: emp.id,
+                          title: `Remove Employee: ${emp.name}`,
+                          description: `Are you sure you want to remove ${emp.name} (${emp.title}) from the agency roster? Their active tasks will be safely reassigned.`,
+                        });
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                      title="Remove Employee"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Agency Sprint Tasks Management */}
+          <div className="p-6 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800/80 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <CheckSquare className="w-4 h-4 text-emerald-500" />
+                  <span>Agency Tasks ({snapshot.tasks.length})</span>
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Sprint deliverables, execution progress & task controls
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuickCreateOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Add Task</span>
+              </button>
+            </div>
+            <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+              {snapshot.tasks.map((tsk) => {
+                const assignee = snapshot.users.find((u) => u.id === tsk.assigned_to);
+                return (
+                  <div
+                    key={tsk.id}
+                    onClick={() => openTaskDrawer(tsk.id)}
+                    className="p-3 rounded-lg border border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between gap-3 text-xs bg-slate-50/50 dark:bg-slate-950/40 cursor-pointer hover:border-emerald-500/40 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                          {tsk.code}
+                        </span>
+                        <span className="font-bold text-slate-900 dark:text-white truncate">
+                          {tsk.title}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5 truncate flex items-center gap-1.5">
+                        <span>{assignee?.name.split(' ')[0] || 'Unassigned'}</span>
+                        <span>·</span>
+                        <span className={tsk.due_date < TODAY_STR ? 'text-rose-500 font-medium' : ''}>
+                          Due {tsk.due_date}
+                        </span>
+                        <span>·</span>
+                        <span className="px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-800 font-medium">
+                          {tsk.status}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteTarget({
+                          type: 'task',
+                          id: tsk.id,
+                          title: `Delete Task: ${tsk.title}`,
+                          description: `Are you sure you want to delete task "${tsk.title}" (${tsk.code})? It will be permanently removed from active sprints and the database.`,
+                        });
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                      title="Delete Task"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Global Confirmation Modal for Founder Overview */}
+        <ConfirmModal
+          open={Boolean(deleteTarget)}
+          title={deleteTarget?.title || 'Confirm Deletion'}
+          description={deleteTarget?.description || 'Are you sure you want to delete this record?'}
+          confirmLabel="Yes, Delete Permanently"
+          danger={true}
+          onConfirm={handleExecuteDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
       </div>
     );
   }
@@ -897,10 +1175,28 @@ export const RoleOverviews: React.FC = () => {
                     <div
                       key={t.id}
                       onClick={() => openTaskDrawer(t.id)}
-                      className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer hover:border-rose-500/50 text-xs space-y-1"
+                      className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer hover:border-rose-500/50 text-xs space-y-1 group"
                     >
-                      <div className="font-semibold text-slate-900 dark:text-white line-clamp-1">
-                        {t.title}
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="font-semibold text-slate-900 dark:text-white line-clamp-1">
+                          {t.title}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteTarget({
+                              type: 'task',
+                              id: t.id,
+                              title: `Delete Task: ${t.title}`,
+                              description: `Are you sure you want to delete task "${t.title}" (${t.code})? It will be removed from sprint boards and the database permanently.`,
+                            });
+                          }}
+                          className="p-1 rounded text-slate-400 hover:text-rose-600 transition-colors"
+                          title="Delete Task"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                       <div className="text-slate-500 flex items-center justify-between font-mono text-[11px]">
                         <span>{owner?.name.split(' ')[0]}</span>
@@ -955,8 +1251,26 @@ export const RoleOverviews: React.FC = () => {
                       onClick={() => openTaskDrawer(t.id)}
                       className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer text-xs space-y-1"
                     >
-                      <div className="font-semibold text-slate-900 dark:text-white line-clamp-1">
-                        {t.title}
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="font-semibold text-slate-900 dark:text-white line-clamp-1">
+                          {t.title}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteTarget({
+                              type: 'task',
+                              id: t.id,
+                              title: `Delete Task: ${t.title}`,
+                              description: `Are you sure you want to delete task "${t.title}" (${t.code})? It will be permanently removed from sprint boards and the database.`,
+                            });
+                          }}
+                          className="p-1 rounded text-slate-400 hover:text-rose-600 transition-colors"
+                          title="Delete Task"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                       <div className="text-[11px] text-slate-500 font-mono">
                         {t.code} · {t.status}
@@ -1092,6 +1406,17 @@ export const RoleOverviews: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Global Confirmation Modal for Manager Overview */}
+        <ConfirmModal
+          open={Boolean(deleteTarget)}
+          title={deleteTarget?.title || 'Confirm Deletion'}
+          description={deleteTarget?.description || 'Are you sure you want to delete this record?'}
+          confirmLabel="Yes, Delete Permanently"
+          danger={true}
+          onConfirm={handleExecuteDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
       </div>
     );
   }
@@ -1291,6 +1616,22 @@ export const RoleOverviews: React.FC = () => {
                         <option value="Review">Review</option>
                         <option value="Completed">Completed</option>
                       </select>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteTarget({
+                            type: 'task',
+                            id: tsk.id,
+                            title: `Delete Task: ${tsk.title}`,
+                            description: `Are you sure you want to delete task "${tsk.title}" (${tsk.code})? It will be removed from your queue and the database permanently.`,
+                          });
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                        title="Delete Task"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 );
@@ -1348,6 +1689,17 @@ export const RoleOverviews: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Global Confirmation Modal for Employee Overview */}
+        <ConfirmModal
+          open={Boolean(deleteTarget)}
+          title={deleteTarget?.title || 'Confirm Deletion'}
+          description={deleteTarget?.description || 'Are you sure you want to delete this record?'}
+          confirmLabel="Yes, Delete Permanently"
+          danger={true}
+          onConfirm={handleExecuteDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
       </div>
     );
   }

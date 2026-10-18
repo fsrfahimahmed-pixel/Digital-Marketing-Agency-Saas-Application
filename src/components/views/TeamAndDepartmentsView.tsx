@@ -5,6 +5,7 @@ import {
   Building2,
   CheckCircle2,
   Plus,
+  Trash2,
   Users,
 } from 'lucide-react';
 import { useAgency } from '../../context/AgencyContext';
@@ -35,6 +36,8 @@ export const TeamAndDepartmentsView: React.FC<{ initialSubTab?: 'specialists' | 
     openTaskDrawer,
     reassignTask,
     setQuickCreateOpen,
+    deleteTeamMember,
+    deleteDepartment,
   } = useAgency();
 
   const [subTab, setSubTab] = useState<'specialists' | 'managers' | 'departments'>(
@@ -110,15 +113,31 @@ export const TeamAndDepartmentsView: React.FC<{ initialSubTab?: 'specialists' | 
             </div>
           </div>
 
-          <div className="w-full lg:w-72 p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
-            <WorkloadBar
-              percent={w.utilizationPercent}
-              status={w.workloadStatus}
-            />
-            <div className="flex items-center justify-between text-[11px] font-mono text-slate-500">
-              <span>{w.estimatedActiveHours}h active est.</span>
-              <span>{w.capacityHours}h weekly cap</span>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="w-full lg:w-72 p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
+              <WorkloadBar
+                percent={w.utilizationPercent}
+                status={w.workloadStatus}
+              />
+              <div className="flex items-center justify-between text-[11px] font-mono text-slate-500">
+                <span>{w.estimatedActiveHours}h active est.</span>
+                <span>{w.capacityHours}h weekly cap</span>
+              </div>
             </div>
+            {currentUser.role === 'FOUNDER' && (
+              <button
+                type="button"
+                onClick={() => {
+                  deleteTeamMember(person.id);
+                  openEmployeeDetail(null);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-xs font-semibold shrink-0 transition-colors"
+                title="Remove Member"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Remove Member</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -310,9 +329,24 @@ export const TeamAndDepartmentsView: React.FC<{ initialSubTab?: 'specialists' | 
                       </p>
                     </div>
                   </div>
-                  <span className="text-xs font-mono text-slate-500">
-                    QA {w.user.performanceScore}%
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-500">
+                      QA {w.user.performanceScore}%
+                    </span>
+                    {currentUser.role === 'FOUNDER' && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteTeamMember(w.user.id);
+                        }}
+                        className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                        title="Remove Team Member"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <WorkloadBar
@@ -391,9 +425,24 @@ export const TeamAndDepartmentsView: React.FC<{ initialSubTab?: 'specialists' | 
                       </p>
                     </div>
                   </div>
-                  <span className="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
-                    Avg Health: {avgHealth}%
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+                      Avg Health: {avgHealth}%
+                    </span>
+                    {currentUser.role === 'FOUNDER' && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteTeamMember(mgr.id);
+                        }}
+                        className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                        title="Remove Manager"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
@@ -442,7 +491,19 @@ export const TeamAndDepartmentsView: React.FC<{ initialSubTab?: 'specialists' | 
                   <span className="font-mono font-semibold text-indigo-600 dark:text-indigo-400">
                     {dept.code}
                   </span>
-                  <span className="text-slate-500">Lead: {mgr?.name}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-500">Lead: {mgr?.name}</span>
+                    {currentUser.role === 'FOUNDER' && (
+                      <button
+                        type="button"
+                        onClick={() => deleteDepartment(dept.id)}
+                        className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                        title="Delete Department"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">
                   {dept.name}

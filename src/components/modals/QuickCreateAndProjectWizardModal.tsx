@@ -216,11 +216,19 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
   const handleCreateTaskSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!tskTitle.trim()) return;
+    const effectiveProjectId =
+      tskProjectId && snapshot.projects.some((p) => p.id === tskProjectId)
+        ? tskProjectId
+        : snapshot.projects[0]?.id || '';
+
     createTask({
       title: tskTitle.trim(),
       description: tskDesc.trim() || 'Assigned via AgencyOS Quick Create.',
-      project_id: tskProjectId,
-      assigned_to: currentUser.role === 'EMPLOYEE' ? currentUser.id : tskAssignee,
+      project_id: effectiveProjectId,
+      assigned_to:
+        currentUser.role === 'EMPLOYEE'
+          ? currentUser.id
+          : tskAssignee || employees[0]?.id || currentUser.id,
       priority: tskPriority,
       due_date: tskDueDate,
       estimatedHours: tskEstHours,
@@ -925,15 +933,23 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
                     Target Project
                   </label>
                   <select
-                    value={tskProjectId}
+                    value={
+                      snapshot.projects.some((p) => p.id === tskProjectId)
+                        ? tskProjectId
+                        : snapshot.projects[0]?.id || ''
+                    }
                     onChange={(e) => setTskProjectId(e.target.value)}
                     className="w-full px-3.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-sm text-slate-900 dark:text-white"
                   >
-                    {snapshot.projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.code} · {p.name}
-                      </option>
-                    ))}
+                    {snapshot.projects.length === 0 ? (
+                      <option value="">General Agency Operations (Auto-Created)</option>
+                    ) : (
+                      snapshot.projects.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.code} · {p.name}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
                 <div>

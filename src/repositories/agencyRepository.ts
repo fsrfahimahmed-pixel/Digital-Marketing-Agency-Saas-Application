@@ -67,6 +67,31 @@ export interface IAgencyRepository {
 }
 
 const STORAGE_KEY = 'agencyos_v1_repository_state';
+const DELETED_IDS_KEY = 'agencyos_deleted_ids_v1';
+
+export function getDeletedIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_IDS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch {
+    // ignore
+  }
+  return new Set();
+}
+
+export function recordDeletedId(id: string): void {
+  if (!id) return;
+  try {
+    const set = getDeletedIds();
+    set.add(id);
+    localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(Array.from(set)));
+  } catch {
+    // ignore
+  }
+}
 
 function createInitialSnapshot(): AgencyDatabaseSnapshot {
   return {
@@ -99,18 +124,65 @@ class MockAgencyRepository implements IAgencyRepository {
   }
 
   private loadFromStorage(): AgencyDatabaseSnapshot {
+    const initial = createInitialSnapshot();
+    const deleted = getDeletedIds();
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as AgencyDatabaseSnapshot;
-        if (parsed && Array.isArray(parsed.projects) && Array.isArray(parsed.users)) {
-          return parsed;
+        if (parsed && typeof parsed === 'object') {
+          return {
+            users: Array.isArray(parsed.users)
+              ? parsed.users.filter((u) => !deleted.has(u.id))
+              : initial.users,
+            departments: Array.isArray(parsed.departments)
+              ? parsed.departments.filter((d) => !deleted.has(d.id))
+              : initial.departments,
+            clients: Array.isArray(parsed.clients)
+              ? parsed.clients.filter((c) => !deleted.has(c.id))
+              : initial.clients,
+            leads: Array.isArray(parsed.leads)
+              ? parsed.leads.filter((l) => !deleted.has(l.id))
+              : initial.leads,
+            projects: Array.isArray(parsed.projects)
+              ? parsed.projects.filter((p) => !deleted.has(p.id))
+              : initial.projects,
+            tasks: Array.isArray(parsed.tasks)
+              ? parsed.tasks.filter((t) => !deleted.has(t.id))
+              : initial.tasks,
+            milestones: Array.isArray(parsed.milestones) ? parsed.milestones : initial.milestones,
+            deliverables: Array.isArray(parsed.deliverables) ? parsed.deliverables : initial.deliverables,
+            approvals: Array.isArray(parsed.approvals) ? parsed.approvals : initial.approvals,
+            files: Array.isArray(parsed.files)
+              ? parsed.files.filter((f) => !deleted.has(f.id))
+              : initial.files,
+            messages: Array.isArray(parsed.messages) ? parsed.messages : initial.messages,
+            notifications: Array.isArray(parsed.notifications) ? parsed.notifications : initial.notifications,
+            calendarEvents: Array.isArray(parsed.calendarEvents)
+              ? parsed.calendarEvents.filter((e) => !deleted.has(e.id))
+              : initial.calendarEvents,
+            timeEntries: Array.isArray(parsed.timeEntries) ? parsed.timeEntries : initial.timeEntries,
+            invoices: Array.isArray(parsed.invoices) ? parsed.invoices : initial.invoices,
+            activities: Array.isArray(parsed.activities) ? parsed.activities : initial.activities,
+            templates: Array.isArray(parsed.templates) ? parsed.templates : initial.templates,
+            automations: Array.isArray(parsed.automations) ? parsed.automations : initial.automations,
+          };
         }
       }
     } catch {
       // Fallback to seed snapshot if localStorage is restricted
     }
-    return createInitialSnapshot();
+    // Filter initial snapshot by any recorded deletions
+    return {
+      ...initial,
+      tasks: initial.tasks.filter((t) => !deleted.has(t.id)),
+      projects: initial.projects.filter((p) => !deleted.has(p.id)),
+      clients: initial.clients.filter((c) => !deleted.has(c.id)),
+      leads: initial.leads.filter((l) => !deleted.has(l.id)),
+      users: initial.users.filter((u) => !deleted.has(u.id)),
+      departments: initial.departments.filter((d) => !deleted.has(d.id)),
+      calendarEvents: initial.calendarEvents.filter((e) => !deleted.has(e.id)),
+    };
   }
 
   public getSnapshot(): AgencyDatabaseSnapshot {
@@ -127,6 +199,11 @@ class MockAgencyRepository implements IAgencyRepository {
   }
 
   public resetToSeed(): AgencyDatabaseSnapshot {
+    try {
+      localStorage.removeItem(DELETED_IDS_KEY);
+    } catch {
+      // ignore
+    }
     const fresh = createInitialSnapshot();
     this.saveSnapshot(fresh);
     return fresh;
