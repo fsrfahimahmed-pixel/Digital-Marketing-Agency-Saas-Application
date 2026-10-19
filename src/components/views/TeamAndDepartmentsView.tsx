@@ -36,6 +36,7 @@ export const TeamAndDepartmentsView: React.FC<{ initialSubTab?: 'specialists' | 
     openTaskDrawer,
     reassignTask,
     setQuickCreateOpen,
+    openQuickCreate,
     deleteTeamMember,
     deleteDepartment,
   } = useAgency();
@@ -270,7 +271,7 @@ export const TeamAndDepartmentsView: React.FC<{ initialSubTab?: 'specialists' | 
 
             {currentUser.role === 'FOUNDER' && (
               <button
-                onClick={() => setQuickCreateOpen(true)}
+                onClick={() => openQuickCreate('member')}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
               >
                 <Plus className="w-3.5 h-3.5" />

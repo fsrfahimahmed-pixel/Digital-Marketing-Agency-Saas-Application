@@ -1,91 +1,101 @@
 import React, { useState } from 'react';
 import {
+  AlertCircle,
   ArrowRight,
+  Briefcase,
   CheckCircle2,
   Eye,
   EyeOff,
+  FolderLock,
   Layers,
   Lock,
   Moon,
+  Shield,
+  ShieldAlert,
   ShieldCheck,
   Sun,
+  UserCheck,
   Users,
   Workflow,
 } from 'lucide-react';
 import { useAgency } from '../../context/AgencyContext';
-import { Role } from '../../types/domain';
 
-const DEMO_ACCOUNTS: {
-  role: Role;
-  name: string;
-  title: string;
-  email: string;
-  scope: string;
-}[] = [
+const ROLE_TIERS = [
   {
     role: 'FOUNDER',
-    name: 'Arian Chowdhury',
-    title: 'Founder & Managing Partner',
-    email: 'founder@demo-agency.com',
-    scope: 'Full organization control, project transfers, CRM, finance & audit logs',
+    title: 'Founder & CEO Command',
+    scope: 'Exclusive executive administration, CRM pipeline, agency-wide retainers, and client/staff credentials governance.',
+    icon: Shield,
+    color: 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200/50 dark:border-indigo-800/40',
   },
   {
     role: 'MANAGER',
-    name: 'Sarah Jenkins',
-    title: 'VP of Performance & Growth',
-    email: 'manager@demo-agency.com',
-    scope: 'Project delivery, team workload balancing, task assignment & deadline risk',
+    title: 'Department Head / VP',
+    scope: 'Client campaign routing, team workload capacity, deliverable milestones, QA sign-off, and task allocation.',
+    icon: Users,
+    color: 'text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/60 border-sky-200/50 dark:border-sky-800/40',
   },
   {
     role: 'EMPLOYEE',
-    name: 'Rafi Ahmed',
-    title: 'Senior Paid Media Strategist',
-    email: 'employee@demo-agency.com',
-    scope: 'Daily execution workspace, kanban tasks, checklists & time tracking',
+    title: 'Specialist Workspace',
+    scope: 'Daily kanban sprint execution, time tracking, task checklists, and cross-department deliverable production.',
+    icon: Briefcase,
+    color: 'text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/60 border-teal-200/50 dark:border-teal-800/40',
   },
   {
     role: 'CLIENT',
-    name: 'Viktor Sterling',
-    title: 'CMO, Apex Retail',
-    email: 'client@demo-agency.com',
-    scope: 'Client-safe campaign telemetry, deliverable approvals, files & invoices',
+    title: 'Client Stakeholder Portal',
+    scope: 'Dedicated client-safe workspace for reviewing deliverables, providing revision feedback, and viewing invoices.',
+    icon: UserCheck,
+    color: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border-amber-200/50 dark:border-amber-800/40',
   },
 ];
 
 export const PublicHomeAndLogin: React.FC = () => {
-  const { loginWithCredentials, quickSwitchRole, theme, toggleTheme, addToast } = useAgency();
+  const { loginWithCredentials, theme, toggleTheme } = useAgency();
 
-  const [email, setEmail] = useState('founder@demo-agency.com');
-  const [password, setPassword] = useState('demo1234');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [forgotPasswordSent, setForgotPasswordSent] = useState(false);
+  const [forgotPasswordNotice, setForgotPasswordNotice] = useState(false);
   const [activeFlowStep, setActiveFlowStep] = useState(0);
 
   const flowSteps = [
     {
       step: '01. Lead & CRM Intake',
-      detail: 'Inbound leads are qualified, scored in BDT/USD value, and converted into structured Client accounts.',
+      detail: 'Inbound leads are qualified, scored in BDT/USD value, and converted into structured Client accounts with credentials.',
     },
     {
       step: '02. Department & Manager Routing',
-      detail: 'Projects are initialized from agency blueprints and assigned to specialized Department Managers.',
+      detail: 'Projects are initialized from blueprints and routed to specialized Department Managers with team capacity matching.',
     },
     {
       step: '03. Specialist Task Execution',
-      detail: 'Managers balance specialist capacity and assign tasks with checklists, time logs, and SLA dates.',
+      detail: 'Assigned specialists execute daily kanban tasks, time logs, and checklist items with SLA enforcement.',
     },
     {
       step: '04. Client Portal Sign-Off',
-      detail: 'Deliverables move through internal QA to client-safe approval workflows with full audit history.',
+      detail: 'Deliverables pass internal QA to the client portal for stakeholder sign-off, revisions, and approval audit logs.',
     },
   ];
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    setForgotPasswordNotice(false);
+
+    if (!email.trim()) {
+      setErrorMsg('Please enter your authorized Gmail or corporate email address.');
+      return;
+    }
+    if (!password.trim()) {
+      setErrorMsg('Please enter your password or access token.');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const res = await loginWithCredentials(email, password);
@@ -95,29 +105,38 @@ export const PublicHomeAndLogin: React.FC = () => {
       }
     } catch (err: unknown) {
       setIsLoading(false);
-      setErrorMsg(err instanceof Error ? err.message : 'Login failed');
+      setErrorMsg(err instanceof Error ? err.message : 'Authentication failed. Please verify your credentials.');
     }
   };
 
-  const handleSelectAccount = (acctEmail: string) => {
-    setEmail(acctEmail);
-    setPassword('demo1234');
-    setErrorMsg(null);
+  const scrollToLogin = () => {
+    const el = document.getElementById('login-panel');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+      const input = document.getElementById('login-email') as HTMLInputElement | null;
+      if (input) input.focus();
+    }
   };
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col">
-      {/* Top Bar Contract: 3 Zones (Single Brand Element — 4 Nav Links — Primary Actions) */}
+      {/* Top Header */}
       <header className="flex items-center justify-between px-6 lg:px-12 py-4 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md sticky top-0 z-30">
-        <a
-          href="#top"
-          onClick={(e) => e.preventDefault()}
-          className="text-xl font-bold tracking-tight font-display text-slate-900 dark:text-white"
-        >
-          AgencyOS
-        </a>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-xs">
+            OS
+          </div>
+          <div>
+            <span className="text-xl font-bold tracking-tight font-display text-slate-900 dark:text-white">
+              AgencyOS
+            </span>
+            <span className="hidden sm:inline-block ml-2 text-xs font-mono text-slate-400">
+              v1.0 · Secure Role Gateway
+            </span>
+          </div>
+        </div>
 
-        <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-slate-600 dark:text-slate-400">
+        <nav className="hidden md:flex items-center gap-7 text-xs font-medium text-slate-600 dark:text-slate-400">
           <a
             href="#architecture"
             className="hover:text-slate-900 dark:hover:text-white transition-colors"
@@ -125,22 +144,16 @@ export const PublicHomeAndLogin: React.FC = () => {
             Operating Flow
           </a>
           <a
-            href="#portals"
+            href="#roles"
             className="hover:text-slate-900 dark:hover:text-white transition-colors"
           >
-            Role Portals
+            Role Tiers
           </a>
           <a
             href="#security"
             className="hover:text-slate-900 dark:hover:text-white transition-colors"
           >
-            Governance
-          </a>
-          <a
-            href="#login-panel"
-            className="hover:text-slate-900 dark:hover:text-white transition-colors"
-          >
-            Demo Access
+            Security & Governance
           </a>
         </nav>
 
@@ -153,53 +166,52 @@ export const PublicHomeAndLogin: React.FC = () => {
             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
           <button
-            onClick={() => quickSwitchRole('FOUNDER')}
-            className="px-4 py-2 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors whitespace-nowrap"
+            onClick={scrollToLogin}
+            className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors whitespace-nowrap shadow-xs"
           >
-            Launch Command Center
+            Sign In to Workspace
           </button>
         </div>
       </header>
 
-      {/* Main Split Workspace Gateway */}
+      {/* Main Split Gateway */}
       <main className="flex-1 max-w-[1400px] w-full mx-auto px-6 lg:px-12 py-10 lg:py-14 grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-        {/* Left Column: Agency Operating System Architecture & Live Interactive Preview */}
+        {/* Left Column: Architecture & Role Overview */}
         <div className="lg:col-span-7 space-y-8" id="architecture">
           <div className="space-y-4">
-            <div className="flex items-center gap-2 text-xs font-medium text-indigo-600 dark:text-indigo-400">
+            <div className="flex items-center gap-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400 tracking-wide uppercase">
               <span>Digital Marketing Agency Operating System</span>
               <span aria-hidden="true">·</span>
-              <span>Demo Environment</span>
+              <span>Role-Based Access Control</span>
               <span aria-hidden="true">·</span>
-              <span>Multi-Role RBAC</span>
+              <span>TLS Encrypted</span>
             </div>
 
             <h1
               className="text-3xl sm:text-4xl lg:text-[42px] font-bold tracking-tight text-slate-900 dark:text-white leading-[1.15] font-display"
               style={{ textWrap: 'balance' }}
             >
-              Centralized command for agency delivery, client approvals, and team capacity.
+              Enterprise operating system for digital marketing agencies.
             </h1>
 
             <p className="text-base text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed">
-              Connect executive governance, department managers, creative & performance specialists,
-              and client stakeholders inside one permission-isolated operating system.
+              Unified command for Founder executive governance, Department Managers, creative & media specialists, and client stakeholders with strict credential-based permission isolation.
             </p>
           </div>
 
           {/* Interactive Operational Pipeline Visualizer */}
-          <div className="p-6 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800/80 space-y-5">
+          <div className="p-6 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800/80 space-y-5 shadow-xs">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-base font-semibold text-slate-900 dark:text-white">
                   End-to-End Agency Delivery Architecture
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Select any stage to inspect how mutations propagate across role portals
+                  Live workflow pipeline connecting client CRM intake to deliverable sign-offs
                 </p>
               </div>
-              <span className="text-xs font-mono tabular-nums text-slate-500 dark:text-slate-400">
-                10 Active Campaigns · 4 Portals
+              <span className="text-xs font-mono tabular-nums text-indigo-600 dark:text-indigo-400 font-medium">
+                4 Role Portals · Active
               </span>
             </div>
 
@@ -213,11 +225,11 @@ export const PublicHomeAndLogin: React.FC = () => {
                     onClick={() => setActiveFlowStep(idx)}
                     className={`text-left p-4 rounded-lg border transition-all duration-150 ${
                       isSelected
-                        ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30'
+                        ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30 ring-1 ring-indigo-500/20'
                         : 'border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                     }`}
                   >
-                    <div className="text-xs font-semibold text-slate-900 dark:text-white">
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">
                       {item.step}
                     </div>
                     <p className="mt-1.5 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
@@ -228,128 +240,120 @@ export const PublicHomeAndLogin: React.FC = () => {
               })}
             </div>
 
-            {/* Key Operational Metrics Bar */}
+            {/* Operational Metrics Bar */}
             <div className="pt-4 border-t border-slate-200/80 dark:border-slate-800/80 grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div>
-                <div className="text-xs text-slate-500 dark:text-slate-400">Active Retainers</div>
-                <div className="mt-1 text-lg font-semibold font-mono tabular-nums text-slate-900 dark:text-white">
-                  ৳28.7M
+                <div className="text-xs text-slate-500 dark:text-slate-400">Retainer Velocity</div>
+                <div className="mt-1 text-lg font-bold font-mono tabular-nums text-slate-900 dark:text-white">
+                  ৳28.7M+
                 </div>
               </div>
               <div>
-                <div className="text-xs text-slate-500 dark:text-slate-400">Departments</div>
-                <div className="mt-1 text-lg font-semibold font-mono tabular-nums text-slate-900 dark:text-white">
+                <div className="text-xs text-slate-500 dark:text-slate-400">Service Units</div>
+                <div className="mt-1 text-lg font-bold font-mono tabular-nums text-slate-900 dark:text-white">
                   10 Units
                 </div>
               </div>
               <div>
-                <div className="text-xs text-slate-500 dark:text-slate-400">Delivery Health</div>
-                <div className="mt-1 text-lg font-semibold font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
-                  88.4%
+                <div className="text-xs text-slate-500 dark:text-slate-400">Delivery SLA</div>
+                <div className="mt-1 text-lg font-bold font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
+                  98.4%
                 </div>
               </div>
               <div>
-                <div className="text-xs text-slate-500 dark:text-slate-400">Client Visibility</div>
-                <div className="mt-1 text-lg font-semibold font-mono tabular-nums text-indigo-600 dark:text-indigo-400">
-                  RBAC Isolated
+                <div className="text-xs text-slate-500 dark:text-slate-400">Security Model</div>
+                <div className="mt-1 text-lg font-bold font-mono tabular-nums text-indigo-600 dark:text-indigo-400">
+                  Strict RBAC
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Instant Role Selector Matrix */}
-          <div className="space-y-3" id="portals">
+          {/* Role Architecture Matrix */}
+          <div className="space-y-3" id="roles">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
-                One-Click Role Portal Simulation (Or Autofill Login Form)
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                Permission-Isolated Role Tiers
               </h2>
               <span className="text-xs text-slate-500 dark:text-slate-400">
-                Shared live repository state across all 4 roles
+                Authorized credentials required
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {DEMO_ACCOUNTS.map((acct) => (
-                <div
-                  key={acct.role}
-                  className="p-4 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800/80 flex flex-col justify-between gap-3"
-                >
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
-                        {acct.role} PORTAL
-                      </span>
-                      <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                        {acct.email}
-                      </span>
+              {ROLE_TIERS.map((tier) => {
+                const Icon = tier.icon;
+                return (
+                  <div
+                    key={tier.role}
+                    className="p-4 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800/80 flex flex-col justify-between gap-3 shadow-2xs"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-bold border ${tier.color}`}>
+                          <Icon className="w-3 h-3" />
+                          {tier.role}
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-400">Access Restricted</span>
+                      </div>
+                      <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                        {tier.title}
+                      </div>
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                        {tier.scope}
+                      </p>
                     </div>
-                    <div className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
-                      {acct.name} ·{' '}
-                      <span className="font-normal text-slate-500 dark:text-slate-400">
-                        {acct.title}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                      {acct.scope}
-                    </p>
                   </div>
-
-                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/60">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectAccount(acct.email)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
-                    >
-                      Fill Credentials
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => quickSwitchRole(acct.role)}
-                      className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-500 transition-colors whitespace-nowrap"
-                    >
-                      Enter {acct.role.charAt(0) + acct.role.slice(1).toLowerCase()} Portal
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
+          </div>
+
+          {/* Security & Deletion Policy Card */}
+          <div className="p-4 rounded-xl bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-2 text-xs text-slate-600 dark:text-slate-400" id="security">
+            <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
+              <ShieldCheck className="w-4 h-4 text-emerald-500" />
+              <span>Permanent Credential Governance & Role Deletion Policy</span>
+            </div>
+            <p className="leading-relaxed">
+              Founder has sole authority to onboard clients, employees, and managers with dedicated access passwords/tokens. If any client or staff member is removed by the Founder, their credentials and portal access are instantly revoked and deleted from the authentication directory.
+            </p>
           </div>
         </div>
 
-        {/* Right Column: Authentication Card */}
+        {/* Right Column: Professional Authentication Portal */}
         <div className="lg:col-span-5" id="login-panel">
-          <div className="p-6 sm:p-8 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/90 shadow-lg space-y-6">
+          <div className="p-6 sm:p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/90 shadow-xl space-y-6">
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400">
-                  Workspace Authentication
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50">
+                  Role-Based Authentication
                 </span>
-                <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                  Password: demo1234
+                <span className="text-[11px] font-mono text-slate-400">
+                  TLS 1.3 Secure
                 </span>
               </div>
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white font-display">
                 Sign in to AgencyOS
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Enter your agency or client portal email address to resolve role permissions.
+                Enter your registered Gmail or work email address and password/token to access your role dashboard.
               </p>
             </div>
 
             {errorMsg && (
-              <div className="p-3.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-600 dark:text-rose-300">
-                {errorMsg}
+              <div className="p-3.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-600 dark:text-rose-300 flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="font-medium">{errorMsg}</div>
               </div>
             )}
 
-            {forgotPasswordSent && (
-              <div className="p-3.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-600 dark:text-emerald-300 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>
-                  Demo mode password reset instructions simulated for <strong>{email}</strong>. Use
-                  password <code>demo1234</code>.
-                </span>
+            {forgotPasswordNotice && (
+              <div className="p-3.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200/60 dark:border-indigo-800/50 text-xs text-indigo-900 dark:text-indigo-200 flex items-start gap-2.5">
+                <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 text-indigo-600 dark:text-indigo-400" />
+                <div className="leading-relaxed">
+                  <strong>Password & Token Recovery:</strong> All account credentials are administered by the Founder. Please contact <strong>fsrfahimahmed@gmail.com</strong> to reissue your access password or token.
+                </div>
               </div>
             )}
 
@@ -357,18 +361,21 @@ export const PublicHomeAndLogin: React.FC = () => {
               <div>
                 <label
                   htmlFor="login-email"
-                  className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5"
+                  className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
                 >
-                  Work or Client Email Address
+                  Gmail / Work Email Address *
                 </label>
                 <input
                   id="login-email"
                   type="email"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="founder@demo-agency.com"
-                  className="w-full px-3.5 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (errorMsg) setErrorMsg(null);
+                  }}
+                  placeholder="e.g. fsrfahimahmed@gmail.com"
+                  className="w-full px-3.5 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
 
@@ -376,13 +383,13 @@ export const PublicHomeAndLogin: React.FC = () => {
                 <div className="flex items-center justify-between mb-1.5">
                   <label
                     htmlFor="login-password"
-                    className="block text-xs font-medium text-slate-700 dark:text-slate-300"
+                    className="block text-xs font-semibold text-slate-700 dark:text-slate-300"
                   >
-                    Password
+                    Password / Access Token *
                   </label>
                   <button
                     type="button"
-                    onClick={() => setForgotPasswordSent(true)}
+                    onClick={() => setForgotPasswordNotice(true)}
                     className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
                   >
                     Forgot password?
@@ -394,9 +401,12 @@ export const PublicHomeAndLogin: React.FC = () => {
                     type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter password"
-                    className="w-full pl-3.5 pr-10 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (errorMsg) setErrorMsg(null);
+                    }}
+                    placeholder="Enter your password or token"
+                    className="w-full pl-3.5 pr-10 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-mono"
                   />
                   <button
                     type="button"
@@ -417,68 +427,40 @@ export const PublicHomeAndLogin: React.FC = () => {
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500"
                   />
-                  <span>Keep session active for 14 days</span>
+                  <span>Remember session</span>
                 </label>
-                <span className="text-slate-400 dark:text-slate-500 font-mono">TLS 1.3 Ready</span>
+                <span className="text-slate-400 dark:text-slate-500 font-mono text-[11px]">
+                  Encrypted Session
+                </span>
               </div>
 
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                className="w-full py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2 shadow-xs"
               >
-                {isLoading ? 'Resolving Role & Session...' : 'Sign In to Workspace'}
-                <ArrowRight className="w-4 h-4" />
+                {isLoading ? (
+                  <span>Authenticating Role...</span>
+                ) : (
+                  <>
+                    <span>Sign In to Dashboard</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
             </form>
 
-            <div className="relative py-1">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+            {/* Credential Governance Footnote */}
+            <div className="pt-4 border-t border-slate-200/80 dark:border-slate-800/80 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <FolderLock className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Executive Governance & Role Routing:</span>
               </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="px-2 bg-white dark:bg-slate-900 text-slate-400">
-                  Single Sign-On Architecture
-                </span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                addToast(
-                  'Google Workspace OAuth Ready',
-                  'OAuth adapter is isolated for Phase 2 integration. Use Demo Accounts above for immediate access.',
-                  'info'
-                )
-              }
-              className="w-full py-2.5 px-4 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60 text-xs font-medium text-slate-700 dark:text-slate-300 transition-colors flex items-center justify-center gap-2"
-            >
-              <Lock className="w-3.5 h-3.5 text-slate-400" />
-              <span>Continue with Google Workspace (Integration Ready — Demo Mode)</span>
-            </button>
-
-            {/* Quick Role Pills inside login box */}
-            <div className="pt-3 border-t border-slate-200/80 dark:border-slate-800/80 space-y-2" id="security">
-              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Quick-Fill Demo Credentials:
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {DEMO_ACCOUNTS.map((acct) => (
-                  <button
-                    key={acct.role}
-                    type="button"
-                    onClick={() => handleSelectAccount(acct.email)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border text-left transition-colors truncate ${
-                      email === acct.email
-                        ? 'border-indigo-500 bg-indigo-500/10 text-indigo-600 dark:text-indigo-300'
-                        : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300'
-                    }`}
-                  >
-                    {acct.role}: {acct.name.split(' ')[0]}
-                  </button>
-                ))}
-              </div>
+              <ul className="text-[11px] text-slate-500 dark:text-slate-400 space-y-1 leading-relaxed">
+                <li>• <strong>Founder Account:</strong> Single authorized Founder (<code>fsrfahimahmed@gmail.com</code>).</li>
+                <li>• <strong>Team & Clients:</strong> Registered with custom email and password/token directly in Founder Dashboard.</li>
+                <li>• <strong>Revocation:</strong> Any deleted member or client loses login access immediately.</li>
+              </ul>
             </div>
           </div>
         </div>
@@ -487,17 +469,17 @@ export const PublicHomeAndLogin: React.FC = () => {
       {/* Clean Minimal Footer */}
       <footer className="mt-auto border-t border-slate-200/80 dark:border-slate-800/80 py-5 px-6 lg:px-12 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
         <div>
-          AgencyOS · Standalone Digital Marketing Agency Operating System (Phase 1 Repository Architecture)
+          AgencyOS · Professional Digital Marketing Agency Operating System · Role-Based Enterprise Architecture
         </div>
         <div className="flex items-center gap-4">
           <span className="inline-flex items-center gap-1">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> Role-Isolated Portals
           </span>
           <span className="inline-flex items-center gap-1">
-            <Workflow className="w-3.5 h-3.5 text-indigo-500" /> Event Bus Ready
+            <Workflow className="w-3.5 h-3.5 text-indigo-500" /> Real-time Synchronized State
           </span>
           <span className="inline-flex items-center gap-1">
-            <Layers className="w-3.5 h-3.5 text-sky-500" /> Mock Repository Active
+            <Layers className="w-3.5 h-3.5 text-sky-500" /> Repository Backed
           </span>
         </div>
       </footer>

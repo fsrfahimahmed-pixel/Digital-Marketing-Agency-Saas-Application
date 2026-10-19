@@ -41,6 +41,7 @@ export const LeadsAndClientsView: React.FC<{ mode: 'leads' | 'clients' }> = ({
     openClientDetail,
     openProjectDetail,
     setQuickCreateOpen,
+    openQuickCreate,
     updateLeadStatus,
     convertLeadToClient,
     deleteClient,
@@ -69,7 +70,7 @@ export const LeadsAndClientsView: React.FC<{ mode: 'leads' | 'clients' }> = ({
           subtitle="Track inbound agency opportunities from discovery to proposal, convert Won deals into active Client accounts, and kick off projects."
           actions={
             <button
-              onClick={() => setQuickCreateOpen(true)}
+              onClick={() => openQuickCreate('lead')}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -403,7 +404,7 @@ export const LeadsAndClientsView: React.FC<{ mode: 'leads' | 'clients' }> = ({
         subtitle="Manage client organizations, stakeholder contacts, active retainers, and account health."
         actions={
           <button
-            onClick={() => setQuickCreateOpen(true)}
+            onClick={() => openQuickCreate('client')}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
           >
             <Building2 className="w-3.5 h-3.5" />

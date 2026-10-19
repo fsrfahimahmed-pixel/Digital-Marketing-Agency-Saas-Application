@@ -92,6 +92,7 @@ interface CreateClientInput {
   name: string;
   company: string;
   email: string;
+  password?: string;
   phone: string;
   industry: string;
   manager_id: string;
@@ -99,6 +100,15 @@ interface CreateClientInput {
   website: string;
   notes: string;
 }
+
+export type QuickCreateMode =
+  | 'project'
+  | 'task'
+  | 'lead'
+  | 'client'
+  | 'member'
+  | 'department'
+  | 'event';
 
 interface AgencyContextValue {
   // Auth & Session
@@ -129,6 +139,8 @@ interface AgencyContextValue {
   setCopilotOpen: (open: boolean) => void;
   isQuickCreateOpen: boolean;
   setQuickCreateOpen: (open: boolean) => void;
+  quickCreateInitialMode: QuickCreateMode;
+  openQuickCreate: (mode?: QuickCreateMode) => void;
   navigateTo: (navId: string) => void;
   openProjectDetail: (projectId: string) => void;
   closeProjectDetail: () => void;
@@ -210,7 +222,8 @@ interface AgencyContextValue {
     email: string,
     role: 'MANAGER' | 'EMPLOYEE',
     title: string,
-    departmentId: string
+    departmentId: string,
+    password?: string
   ) => void;
   deleteTeamMember: (memberId: string) => void;
   createCalendarEvent: (
@@ -261,6 +274,12 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [isCopilotOpen, setCopilotOpen] = useState(false);
   const [isQuickCreateOpen, setQuickCreateOpen] = useState(false);
+  const [quickCreateInitialMode, setQuickCreateInitialMode] = useState<QuickCreateMode>('project');
+
+  const openQuickCreate = (mode: QuickCreateMode = 'project') => {
+    setQuickCreateInitialMode(mode);
+    setQuickCreateOpen(true);
+  };
 
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     try {
@@ -412,57 +431,169 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     password: string
   ): Promise<{ ok: boolean; error?: string }> => {
     const cleanEmail = email.trim().toLowerCase();
+    const cleanPass = password.trim();
+
     if (!cleanEmail) {
-      return { ok: false, error: 'Please enter a valid agency or client email address.' };
+      return { ok: false, error: 'Please enter a valid Gmail or corporate email address.' };
     }
-    if (!password || password.length < 4) {
-      return { ok: false, error: 'Password must be at least 4 characters.' };
+    if (!cleanPass) {
+      return { ok: false, error: 'Please enter your password or access token.' };
     }
 
-    let authenticatedUser: User | null = null;
+    const FOUNDER_EMAIL = 'fsrfahimahmed@gmail.com';
+    const FOUNDER_PASS = '999888';
 
-    // First attempt real Supabase Auth
-    if (isSupabaseConfigured) {
-      const authResult = await SupabaseService.signInWithEmail(cleanEmail, password);
-      if (authResult.ok && authResult.user) {
-        authenticatedUser = authResult.user;
+    // 1. Strict Founder Authentication Check (Single Founder Policy)
+    if (cleanEmail === FOUNDER_EMAIL) {
+      if (cleanPass !== FOUNDER_PASS) {
+        return { ok: false, error: 'Invalid password. Founder credentials do not match.' };
       }
-    }
 
-    // If not found in Supabase Auth, check demo accounts or auto-provision
-    if (!authenticatedUser) {
-      const matchedLocal = snapshot.users.find(
-        (u) =>
-          u.email.toLowerCase() === cleanEmail ||
-          (u.altEmail && u.altEmail.toLowerCase() === cleanEmail)
+      let founder = snapshot.users.find(
+        (u) => u.role === 'FOUNDER' || u.email.toLowerCase() === FOUNDER_EMAIL
       );
 
-      if (matchedLocal) {
-        if (isSupabaseConfigured) {
-          try {
-            const autoSignUp = await SupabaseService.signUpWithEmail(
-              cleanEmail,
-              password,
-              matchedLocal.name,
-              matchedLocal.role,
-              matchedLocal.title
-            );
-            authenticatedUser = autoSignUp.ok && autoSignUp.user ? autoSignUp.user : matchedLocal;
-          } catch {
-            authenticatedUser = matchedLocal;
-          }
-        } else {
-          authenticatedUser = matchedLocal;
-        }
-      } else {
-        return {
-          ok: false,
-          error: 'Account not found. Please check your email and password or register a new account.',
+      if (!founder) {
+        founder = {
+          id: 'usr_founder_01',
+          name: 'Fahim Ahmed',
+          email: FOUNDER_EMAIL,
+          altEmail: FOUNDER_EMAIL,
+          phone: '+880 1711-999888',
+          role: 'FOUNDER',
+          title: 'Founder & CEO',
+          password: FOUNDER_PASS,
+          department_id: 'dept_001',
+          avatarInitials: 'FA',
+          avatarColor: 'bg-indigo-600 text-white',
+          timezone: 'Asia/Dhaka (GMT+6)',
+          availability: 'Available',
+          weeklyCapacityHours: 45,
+          performanceScore: 100,
+          joined_at: TODAY_STR,
         };
+        commitSnapshot((db) => {
+          db.users = db.users.filter((u) => u.role !== 'FOUNDER');
+          db.users.unshift(founder!);
+          return db;
+        });
+      } else {
+        // Guarantee latest fields
+        founder = {
+          ...founder,
+          name: 'Fahim Ahmed',
+          email: FOUNDER_EMAIL,
+          role: 'FOUNDER',
+          password: FOUNDER_PASS,
+        };
+      }
+
+      setCurrentUser(founder);
+      setActiveNav('overview');
+      setSelectedProjectId(null);
+      setSelectedTaskId(null);
+      setSelectedClientId(null);
+      setSelectedEmployeeId(null);
+
+      try {
+        localStorage.setItem(SESSION_KEY, founder.id);
+      } catch {
+        // ignore
+      }
+
+      addToast('Welcome, Founder', 'Authenticated as Fahim Ahmed (Executive Dashboard).', 'success');
+      return { ok: true };
+    }
+
+    // 2. Client, Employee, and Manager Role-Based Authentication
+    const deleted = getDeletedIds();
+
+    // Check in users
+    let targetUser = snapshot.users.find(
+      (u) =>
+        u.email.toLowerCase() === cleanEmail ||
+        (u.altEmail && u.altEmail.toLowerCase() === cleanEmail)
+    );
+
+    // If not found in users, check if a registered client exists in snapshot.clients
+    if (!targetUser) {
+      const targetClient = snapshot.clients.find(
+        (c) => c.email.toLowerCase() === cleanEmail
+      );
+      if (targetClient && !deleted.has(targetClient.id)) {
+        if (targetClient.password && targetClient.password !== cleanPass) {
+          return { ok: false, error: 'Invalid password or access token for this client account.' };
+        }
+        const initials =
+          targetClient.name
+            .split(' ')
+            .map((p) => p[0])
+            .join('')
+            .toUpperCase()
+            .slice(0, 2) || 'CL';
+        targetUser = {
+          id: `usr_cli_${targetClient.id}`,
+          name: targetClient.name,
+          email: targetClient.email.toLowerCase(),
+          phone: targetClient.phone,
+          role: 'CLIENT',
+          title: `${targetClient.company} Client Portal`,
+          client_id: targetClient.id,
+          avatarInitials: initials,
+          avatarColor: 'bg-slate-700 text-white',
+          timezone: 'Asia/Dhaka (GMT+6)',
+          availability: 'Available',
+          weeklyCapacityHours: 0,
+          performanceScore: 100,
+          joined_at: TODAY_STR,
+          password: targetClient.password || cleanPass,
+        };
+        commitSnapshot((db) => {
+          if (!db.users.some((u) => u.id === targetUser!.id)) {
+            db.users.push(targetUser!);
+          }
+          return db;
+        });
       }
     }
 
-    setCurrentUser(authenticatedUser);
+    if (!targetUser) {
+      return {
+        ok: false,
+        error: 'Invalid credentials. No active user account found with this email.',
+      };
+    }
+
+    // Verify deletion status
+    if (deleted.has(targetUser.id) || (targetUser.client_id && deleted.has(targetUser.client_id))) {
+      return {
+        ok: false,
+        error: 'This account has been deleted by the Founder. Access revoked.',
+      };
+    }
+
+    // Single founder rule: no other user can authenticate as FOUNDER
+    if (targetUser.role === 'FOUNDER') {
+      return {
+        ok: false,
+        error: 'Invalid founder account. Single founder policy active.',
+      };
+    }
+
+    // Verify Password / Token
+    const expectedPassword = targetUser.password;
+    if (expectedPassword) {
+      if (expectedPassword !== cleanPass) {
+        return { ok: false, error: 'Invalid password or access token for this account.' };
+      }
+    } else {
+      const validSeedPasswords = ['demo1234', '123456', `${targetUser.role.toLowerCase()}123`];
+      if (!validSeedPasswords.includes(cleanPass)) {
+        return { ok: false, error: 'Invalid password. Please check your credentials.' };
+      }
+    }
+
+    setCurrentUser(targetUser);
     setActiveNav('overview');
     setSelectedProjectId(null);
     setSelectedTaskId(null);
@@ -470,15 +601,15 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setSelectedEmployeeId(null);
 
     try {
-      localStorage.setItem(SESSION_KEY, authenticatedUser.id);
+      localStorage.setItem(SESSION_KEY, targetUser.id);
     } catch {
       // ignore
     }
 
     addToast(
-      `Authenticated as ${authenticatedUser.name}`,
-      `Connected to Supabase (${authenticatedUser.role} Portal).`,
-      'info'
+      `Authenticated as ${targetUser.name}`,
+      `Role-based access: ${targetUser.role} Dashboard active.`,
+      'success'
     );
     return { ok: true };
   };
@@ -1256,12 +1387,15 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const createClient = (input: CreateClientInput): Client => {
+    const cleanEmail = input.email.trim().toLowerCase();
+    const clientPass = input.password?.trim() || `client-${Date.now().toString().slice(-4)}`;
+
     const newClient: Client = {
       id: generateUUID(),
-      name: input.name,
-      company: input.company,
-      email: input.email,
-      phone: input.phone,
+      name: input.name.trim(),
+      company: input.company.trim(),
+      email: cleanEmail,
+      phone: input.phone.trim() || '+880 1711-555555',
       industry: input.industry,
       status: 'Active',
       manager_id: input.manager_id,
@@ -1269,14 +1403,46 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       joined_date: TODAY_STR,
       website: input.website || 'https://example.com',
       notes: input.notes,
+      password: clientPass,
+    };
+
+    const initials =
+      input.name
+        .split(' ')
+        .map((p) => p[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2) || 'CL';
+
+    // Provision matching User with CLIENT role so client can log in
+    const clientUser: User = {
+      id: `usr_cli_${newClient.id}`,
+      name: input.name.trim(),
+      email: cleanEmail,
+      phone: input.phone.trim() || '+880 1711-555555',
+      role: 'CLIENT',
+      title: `${input.company.trim()} Client Stakeholder`,
+      client_id: newClient.id,
+      password: clientPass,
+      avatarInitials: initials,
+      avatarColor: 'bg-slate-700 text-white',
+      timezone: 'Asia/Dhaka (GMT+6)',
+      availability: 'Available',
+      weeklyCapacityHours: 0,
+      performanceScore: 100,
+      joined_at: TODAY_STR,
     };
 
     commitSnapshot((db) => {
       db.clients.unshift(newClient);
+      // Remove any existing user with same email to avoid collisions
+      db.users = db.users.filter((u) => u.email.toLowerCase() !== cleanEmail);
+      db.users.unshift(clientUser);
+
       db.activities.unshift({
         id: generateUUID(),
         actor_id: currentUser?.id || 'usr_founder_01',
-        action: 'onboarded new client organization',
+        action: 'onboarded new client organization with credentials',
         targetType: 'Client',
         targetName: newClient.company,
         client_id: newClient.id,
@@ -1286,7 +1452,11 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return db;
     });
 
-    addToast('Client Onboarded', `${newClient.company} added to active directory.`);
+    addToast(
+      'Client Onboarded',
+      `${newClient.company} onboarded with portal access (${cleanEmail}). Password/token registered.`,
+      'success'
+    );
     SupabaseService.saveClient(newClient).catch(() => {});
     return newClient;
   };
@@ -1297,6 +1467,20 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     commitSnapshot((db) => {
       clientToDelete = db.clients.find((c) => c.id === clientId);
       db.clients = db.clients.filter((c) => c.id !== clientId);
+
+      // Permanently remove and revoke credentials for this client's user account
+      const clientUsers = db.users.filter(
+        (u) =>
+          u.client_id === clientId ||
+          (clientToDelete && u.email.toLowerCase() === clientToDelete.email.toLowerCase())
+      );
+      clientUsers.forEach((u) => recordDeletedId(u.id));
+      db.users = db.users.filter(
+        (u) =>
+          u.client_id !== clientId &&
+          (!clientToDelete || u.email.toLowerCase() !== clientToDelete.email.toLowerCase())
+      );
+
       // Remove associated projects and their tasks
       const deletedProjectIds = new Set(
         db.projects.filter((p) => p.client_id === clientId).map((p) => p.id)
@@ -1314,7 +1498,7 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         db.activities.unshift({
           id: generateUUID(),
           actor_id: currentUser?.id || 'usr_founder_01',
-          action: 'removed client account',
+          action: 'removed client account and revoked credentials',
           targetType: 'Client',
           targetName: clientToDelete.company,
           visibility: 'Internal',
@@ -1327,7 +1511,11 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setSelectedClientId(null);
     }
     SupabaseService.deleteClient(clientId, clientToDelete?.company).catch(() => {});
-    addToast('Client Removed', `${clientToDelete?.company || 'Client'} removed from directory & database.`, 'warning');
+    addToast(
+      'Client & Credentials Deleted',
+      `${clientToDelete?.company || 'Client'} removed. Portal access permanently revoked.`,
+      'info'
+    );
   };
 
   const decideApproval = (
@@ -1593,39 +1781,47 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     email: string,
     role: 'MANAGER' | 'EMPLOYEE',
     title: string,
-    departmentId: string
+    departmentId: string,
+    password?: string
   ) => {
+    const cleanEmail = email.trim().toLowerCase();
+    const userPass = password?.trim() || `${role.toLowerCase()}-${Date.now().toString().slice(-4)}`;
     const initials = name
+      .trim()
       .split(' ')
       .map((p) => p[0])
       .join('')
       .toUpperCase()
-      .slice(0, 2);
+      .slice(0, 2) || 'AG';
+
     let newUser: User;
     commitSnapshot((db) => {
       const dept = db.departments.find((d) => d.id === departmentId);
       newUser = {
         id: generateUUID(),
-        name,
-        email,
+        name: name.trim(),
+        email: cleanEmail,
         phone: '+880 1711-000000',
         role,
-        title,
+        title: title.trim(),
         department_id: departmentId,
         manager_id: dept?.manager_id || 'usr_mgr_01',
-        avatarInitials: initials || 'AG',
+        avatarInitials: initials,
         avatarColor: role === 'MANAGER' ? 'bg-indigo-600 text-white' : 'bg-teal-600 text-white',
         timezone: 'Asia/Dhaka (GMT+6)',
         availability: 'Available',
         weeklyCapacityHours: 40,
         performanceScore: 90,
         joined_at: TODAY_STR,
+        password: userPass,
       };
+      // Prevent duplicate emails
+      db.users = db.users.filter((u) => u.email.toLowerCase() !== cleanEmail);
       db.users.push(newUser);
       db.activities.unshift({
         id: generateUUID(),
         actor_id: currentUser?.id || 'usr_founder_01',
-        action: `added new ${role.toLowerCase()} to agency roster`,
+        action: `added new ${role.toLowerCase()} with credentials to agency roster`,
         targetType: 'Team',
         targetName: `${name} (${title})`,
         visibility: 'Internal',
@@ -1636,7 +1832,11 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (newUser!) {
       SupabaseService.saveMember(newUser).catch(() => {});
     }
-    addToast('Team Member Added', `${name} joined as ${title}.`);
+    addToast(
+      'Team Member Added',
+      `${name} registered as ${role} (${cleanEmail}). Login credentials active.`,
+      'success'
+    );
   };
 
   const deleteTeamMember = (memberId: string) => {
@@ -1658,7 +1858,7 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         db.activities.unshift({
           id: generateUUID(),
           actor_id: currentUser?.id || 'usr_founder_01',
-          action: 'removed team member',
+          action: 'removed team member and revoked credentials',
           targetType: 'Team',
           targetName: memberToDelete.name,
           visibility: 'Internal',
@@ -1671,7 +1871,11 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setSelectedEmployeeId(null);
     }
     SupabaseService.deleteMember(memberId, memberToDelete?.email).catch(() => {});
-    addToast('Member Removed', `${memberToDelete?.name || 'Member'} removed from agency roster & database.`, 'warning');
+    addToast(
+      'Member Removed',
+      `${memberToDelete?.name || 'Member'} removed from agency roster. Login credentials permanently revoked.`,
+      'info'
+    );
   };
 
   const createCalendarEvent = (
@@ -1774,6 +1978,8 @@ export const AgencyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setCopilotOpen,
         isQuickCreateOpen,
         setQuickCreateOpen,
+        quickCreateInitialMode,
+        openQuickCreate,
         navigateTo,
         openProjectDetail,
         closeProjectDetail,

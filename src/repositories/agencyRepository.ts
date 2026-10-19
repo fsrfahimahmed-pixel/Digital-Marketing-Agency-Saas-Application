@@ -126,12 +126,14 @@ class MockAgencyRepository implements IAgencyRepository {
   private loadFromStorage(): AgencyDatabaseSnapshot {
     const initial = createInitialSnapshot();
     const deleted = getDeletedIds();
+    let loaded: AgencyDatabaseSnapshot;
+
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as AgencyDatabaseSnapshot;
         if (parsed && typeof parsed === 'object') {
-          return {
+          loaded = {
             users: Array.isArray(parsed.users)
               ? parsed.users.filter((u) => !deleted.has(u.id))
               : initial.users,
@@ -167,22 +169,77 @@ class MockAgencyRepository implements IAgencyRepository {
             templates: Array.isArray(parsed.templates) ? parsed.templates : initial.templates,
             automations: Array.isArray(parsed.automations) ? parsed.automations : initial.automations,
           };
+        } else {
+          loaded = initial;
         }
+      } else {
+        loaded = initial;
       }
     } catch {
-      // Fallback to seed snapshot if localStorage is restricted
+      loaded = initial;
     }
-    // Filter initial snapshot by any recorded deletions
-    return {
-      ...initial,
-      tasks: initial.tasks.filter((t) => !deleted.has(t.id)),
-      projects: initial.projects.filter((p) => !deleted.has(p.id)),
-      clients: initial.clients.filter((c) => !deleted.has(c.id)),
-      leads: initial.leads.filter((l) => !deleted.has(l.id)),
-      users: initial.users.filter((u) => !deleted.has(u.id)),
-      departments: initial.departments.filter((d) => !deleted.has(d.id)),
-      calendarEvents: initial.calendarEvents.filter((e) => !deleted.has(e.id)),
+
+    // Filter by any recorded deletions
+    loaded.tasks = loaded.tasks.filter((t) => !deleted.has(t.id));
+    loaded.projects = loaded.projects.filter((p) => !deleted.has(p.id));
+    loaded.clients = loaded.clients.filter((c) => !deleted.has(c.id));
+    loaded.leads = loaded.leads.filter((l) => !deleted.has(l.id));
+    loaded.users = loaded.users.filter((u) => !deleted.has(u.id));
+    loaded.departments = loaded.departments.filter((d) => !deleted.has(d.id));
+    loaded.calendarEvents = loaded.calendarEvents.filter((e) => !deleted.has(e.id));
+
+    // Guarantee: ONLY ONE Founder - Fahim Ahmed (fsrfahimahmed@gmail.com, pass 999888)
+    const founderUser: User = {
+      id: 'usr_founder_01',
+      name: 'Fahim Ahmed',
+      email: 'fsrfahimahmed@gmail.com',
+      altEmail: 'fsrfahimahmed@gmail.com',
+      phone: '+880 1711-999888',
+      role: 'FOUNDER',
+      title: 'Founder & CEO',
+      password: '999888',
+      department_id: 'dept_001',
+      avatarInitials: 'FA',
+      avatarColor: 'bg-indigo-600 text-white',
+      timezone: 'Asia/Dhaka (GMT+6)',
+      availability: 'Available',
+      weeklyCapacityHours: 45,
+      performanceScore: 100,
+      joined_at: '2023-01-01',
     };
+
+    // Replace or insert founder
+    const existingFounderIdx = loaded.users.findIndex(
+      (u) => u.id === 'usr_founder_01' || u.role === 'FOUNDER' || u.email === 'fsrfahimahmed@gmail.com'
+    );
+    if (existingFounderIdx >= 0) {
+      loaded.users[existingFounderIdx] = {
+        ...loaded.users[existingFounderIdx],
+        ...founderUser,
+      };
+    } else {
+      loaded.users.unshift(founderUser);
+    }
+
+    // Strip any other user from being FOUNDER to guarantee single founder policy
+    loaded.users = loaded.users.filter(
+      (u) => u.role !== 'FOUNDER' || u.email.toLowerCase() === 'fsrfahimahmed@gmail.com'
+    );
+
+    // Provide default passwords for existing seeded users if not yet set
+    loaded.users = loaded.users.map((u) => {
+      if (u.role === 'FOUNDER') {
+        return { ...u, email: 'fsrfahimahmed@gmail.com', password: '999888' };
+      }
+      if (!u.password) {
+        if (u.role === 'MANAGER') return { ...u, password: 'manager123' };
+        if (u.role === 'EMPLOYEE') return { ...u, password: 'employee123' };
+        if (u.role === 'CLIENT') return { ...u, password: 'client123' };
+      }
+      return u;
+    });
+
+    return loaded;
   }
 
   public getSnapshot(): AgencyDatabaseSnapshot {

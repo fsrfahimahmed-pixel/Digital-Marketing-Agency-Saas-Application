@@ -303,6 +303,7 @@ export const RoleOverviews: React.FC = () => {
     openTaskDrawer,
     openEmployeeDetail,
     setQuickCreateOpen,
+    openQuickCreate,
     setCopilotOpen,
     updateTaskStatus,
     updateProjectProgress,
@@ -427,28 +428,28 @@ export const RoleOverviews: React.FC = () => {
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <button
-                onClick={() => setQuickCreateOpen(true)}
+                onClick={() => openQuickCreate('client')}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap"
               >
                 <Building2 className="w-3.5 h-3.5 text-indigo-500" />
                 <span>+ Add Client</span>
               </button>
               <button
-                onClick={() => setQuickCreateOpen(true)}
+                onClick={() => openQuickCreate('member')}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap"
               >
                 <Users className="w-3.5 h-3.5 text-teal-500" />
-                <span>+ Add Employee</span>
+                <span>+ Add Employee / Manager</span>
               </button>
               <button
-                onClick={() => setQuickCreateOpen(true)}
+                onClick={() => openQuickCreate('task')}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap"
               >
                 <CheckSquare className="w-3.5 h-3.5 text-violet-500" />
                 <span>+ New Task</span>
               </button>
               <button
-                onClick={() => setQuickCreateOpen(true)}
+                onClick={() => openQuickCreate('project')}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors whitespace-nowrap shadow-2xs"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -867,8 +868,8 @@ export const RoleOverviews: React.FC = () => {
               </div>
               <button
                 type="button"
-                onClick={() => setQuickCreateOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors shrink-0"
+                onClick={() => openQuickCreate('client')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors shrink-0 shadow-xs"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>+ Add Client</span>
@@ -890,8 +891,11 @@ export const RoleOverviews: React.FC = () => {
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200/40">
                           {cli.status}
                         </span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-900">
+                          {cli.email}
+                        </span>
                       </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+                      <div className="text-[11px] text-slate-500 mt-1 truncate">
                         {cli.name} · {cli.industry} · {prjCount} Projects · {formatCurrency(cli.totalValueBdt, currency)}
                       </div>
                     </div>
@@ -902,11 +906,11 @@ export const RoleOverviews: React.FC = () => {
                           type: 'client',
                           id: cli.id,
                           title: `Delete Client: ${cli.company}`,
-                          description: `Are you sure you want to delete client account "${cli.company}"? All associated project workspaces and tasks will be cleaned up from the database.`,
+                          description: `Are you sure you want to delete client account "${cli.company}"? Their login access (${cli.email}) and password credentials will be permanently deleted and revoked from the database.`,
                         });
                       }}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                      title="Delete Client"
+                      title="Delete Client & Revoke Login Access"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -922,19 +926,19 @@ export const RoleOverviews: React.FC = () => {
               <div>
                 <h3 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                   <Users className="w-4 h-4 text-teal-500" />
-                  <span>Team Specialists ({employees.length})</span>
+                  <span>Team Specialists & Managers ({employees.length})</span>
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Manage agency delivery specialists or onboard new team members
+                  Manage agency delivery specialists or onboard new team members with credentials
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setQuickCreateOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold transition-colors shrink-0"
+                onClick={() => openQuickCreate('member')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold transition-colors shrink-0 shadow-xs"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>+ Add Employee</span>
+                <span>+ Add Employee / Manager</span>
               </button>
             </div>
             <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
@@ -953,10 +957,15 @@ export const RoleOverviews: React.FC = () => {
                         size="xs"
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="font-bold text-slate-900 dark:text-white truncate">
-                          {emp.name}
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900 dark:text-white truncate">
+                            {emp.name}
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-900">
+                            {emp.email}
+                          </span>
                         </div>
-                        <div className="text-[11px] text-slate-500 truncate">
+                        <div className="text-[11px] text-slate-500 truncate mt-0.5">
                           {emp.title} · {dept?.name || 'Operations'} · {taskCount} active tasks
                         </div>
                       </div>
@@ -967,12 +976,12 @@ export const RoleOverviews: React.FC = () => {
                         setDeleteTarget({
                           type: 'member',
                           id: emp.id,
-                          title: `Remove Employee: ${emp.name}`,
-                          description: `Are you sure you want to remove ${emp.name} (${emp.title}) from the agency roster? Their active tasks will be safely reassigned.`,
+                          title: `Remove Member: ${emp.name}`,
+                          description: `Are you sure you want to remove ${emp.name} (${emp.title})? Their login account (${emp.email}) and access credentials will be permanently deleted and revoked from the system.`,
                         });
                       }}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                      title="Remove Employee"
+                      title="Remove Member & Revoke Login Access"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

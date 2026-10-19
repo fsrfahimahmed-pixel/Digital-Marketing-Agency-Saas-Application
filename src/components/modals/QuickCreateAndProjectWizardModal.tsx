@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -7,10 +7,14 @@ import {
   Calendar,
   CheckCircle2,
   CheckSquare,
+  Eye,
+  EyeOff,
   FolderPlus,
   Hash,
+  Key,
   Layers,
   Plus,
+  ShieldCheck,
   Sparkles,
   UserPlus,
   X,
@@ -33,6 +37,7 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
     currentUser,
     isQuickCreateOpen,
     setQuickCreateOpen,
+    quickCreateInitialMode,
     snapshot,
     currency,
     addToast,
@@ -49,6 +54,12 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
   const [mode, setMode] = useState<CreateMode>('project');
   const [wizardStep, setWizardStep] = useState<number>(1);
 
+  useEffect(() => {
+    if (isQuickCreateOpen && quickCreateInitialMode) {
+      setMode(quickCreateInitialMode);
+    }
+  }, [isQuickCreateOpen, quickCreateInitialMode]);
+
   // Project Wizard State
   const [prjSerialNumber, setPrjSerialNumber] = useState(
     () => `PRJ-${101 + snapshot.projects.length}`
@@ -59,6 +70,7 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
   const [newClientName, setNewClientName] = useState('');
   const [newClientEmail, setNewClientEmail] = useState('');
   const [newClientPhone, setNewClientPhone] = useState('');
+  const [newClientPassword, setNewClientPassword] = useState('');
   const [newClientIndustry, setNewClientIndustry] = useState('B2B SaaS & Tech');
 
   const [prjTemplateId, setPrjTemplateId] = useState<string>('tpl_001');
@@ -99,12 +111,16 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
   const [cliCompany, setCliCompany] = useState('');
   const [cliName, setCliName] = useState('');
   const [cliEmail, setCliEmail] = useState('');
+  const [cliPassword, setCliPassword] = useState('');
+  const [showCliPassword, setShowCliPassword] = useState(false);
   const [cliIndustry, setCliIndustry] = useState('B2B SaaS & Enterprise');
   const [cliValue, setCliValue] = useState(3200000);
 
   // Member State
   const [memName, setMemName] = useState('');
   const [memEmail, setMemEmail] = useState('');
+  const [memPassword, setMemPassword] = useState('');
+  const [showMemPassword, setShowMemPassword] = useState(false);
   const [memRole, setMemRole] = useState<'EMPLOYEE' | 'MANAGER'>('EMPLOYEE');
   const [memTitle, setMemTitle] = useState('Performance Marketing Specialist');
   const [memDeptId, setMemDeptId] = useState('dept_003');
@@ -161,6 +177,7 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
       email:
         newClientEmail.trim() ||
         `contact@${newClientCompany.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
+      password: newClientPassword.trim() || `cli-${Math.random().toString(36).slice(2, 8)}`,
       phone: newClientPhone.trim() || '+880 1700-000000',
       industry: newClientIndustry,
       manager_id: prjManagerId || 'usr_mgr_01',
@@ -174,6 +191,7 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
     setNewClientName('');
     setNewClientEmail('');
     setNewClientPhone('');
+    setNewClientPassword('');
     addToast(
       'Client Saved & Selected',
       `${created.company} has been added and selected for this project.`,
@@ -261,10 +279,12 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
   const handleCreateClientSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!cliCompany.trim() || !cliName.trim()) return;
+    const finalPassword = cliPassword.trim() || `cli-${Math.random().toString(36).slice(2, 8)}`;
     createClient({
       name: cliName.trim(),
       company: cliCompany.trim(),
-      email: cliEmail.trim() || 'client@company.com',
+      email: cliEmail.trim() || `client@${cliCompany.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
+      password: finalPassword,
       phone: '+880 1711-555555',
       industry: cliIndustry,
       manager_id: 'usr_mgr_01',
@@ -274,15 +294,26 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
     });
     setCliCompany('');
     setCliName('');
+    setCliEmail('');
+    setCliPassword('');
     setQuickCreateOpen(false);
   };
 
   const handleCreateMemberSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!memName.trim() || !memEmail.trim()) return;
-    createTeamMember(memName.trim(), memEmail.trim(), memRole, memTitle, memDeptId);
+    const finalPassword = memPassword.trim() || `${memRole.toLowerCase()}-${Math.random().toString(36).slice(2, 8)}`;
+    createTeamMember(
+      memName.trim(),
+      memEmail.trim(),
+      memRole,
+      memTitle,
+      memDeptId,
+      finalPassword
+    );
     setMemName('');
     setMemEmail('');
+    setMemPassword('');
     setQuickCreateOpen(false);
   };
 
@@ -1135,6 +1166,13 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
           {/* 4. CLIENT ONBOARDING FLOW */}
           {mode === 'client' && canCreateLead && (
             <form onSubmit={handleCreateClientSubmit} className="space-y-4">
+              <div className="p-3 rounded-lg bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200/50 dark:border-indigo-800/40 flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+                <div className="text-xs text-indigo-950 dark:text-indigo-200 leading-relaxed">
+                  <strong>Role-Based Client Portal Provisioning:</strong> Setting email and password/token here registers the client into the AgencyOS authentication store. The client can log in directly with their credentials to access approvals and project deliverables.
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
@@ -1151,7 +1189,7 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                    Primary Stakeholder Contact *
+                    Primary Stakeholder Contact Person *
                   </label>
                   <input
                     type="text"
@@ -1163,19 +1201,56 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                    Stakeholder Email
+                    Client Gmail / Work Email Address *
                   </label>
                   <input
                     type="email"
+                    required
                     value={cliEmail}
                     onChange={(e) => setCliEmail(e.target.value)}
-                    placeholder="selena@stellarhealth.com"
+                    placeholder="e.g., client@stellarhealth.com or client@gmail.com"
                     className="w-full px-3.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-sm text-slate-900 dark:text-white"
                   />
                 </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Client Portal Password / Access Token *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setCliPassword(`cli-${Math.random().toString(36).slice(2, 8)}`)}
+                      className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-1"
+                    >
+                      <Key className="w-3 h-3" />
+                      Auto-generate Token
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showCliPassword ? 'text' : 'password'}
+                      required
+                      value={cliPassword}
+                      onChange={(e) => setCliPassword(e.target.value)}
+                      placeholder="e.g., ClientPass#2026 or access token"
+                      className="w-full pl-3.5 pr-10 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-sm text-slate-900 dark:text-white font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCliPassword((prev) => !prev)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      {showCliPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                     Industry Vertical
@@ -1200,12 +1275,16 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
                   />
                 </div>
               </div>
-              <div className="flex justify-end pt-2">
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-200/80 dark:border-slate-800/80">
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Credentials stored permanently until client is deleted by Founder
+                </span>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+                  className="px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-xs"
                 >
-                  Complete Client Onboarding
+                  Save Client & Activate Portal Login
                 </button>
               </div>
             </form>
@@ -1214,6 +1293,13 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
           {/* 5. ADD TEAM MEMBER */}
           {mode === 'member' && canCreateFounderOnly && (
             <form onSubmit={handleCreateMemberSubmit} className="space-y-4">
+              <div className="p-3 rounded-lg bg-teal-50/60 dark:bg-teal-950/40 border border-teal-200/50 dark:border-teal-800/40 flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0 mt-0.5" />
+                <div className="text-xs text-teal-950 dark:text-teal-200 leading-relaxed">
+                  <strong>Role-Based Staff Provisioning:</strong> Provide Gmail/work email and a secure password or access token. The employee or department manager will log in using these credentials to access their role-specific dashboard.
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
@@ -1230,46 +1316,85 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                    Agency Email *
+                    Staff Gmail / Work Email *
                   </label>
                   <input
                     type="email"
                     required
                     value={memEmail}
                     onChange={(e) => setMemEmail(e.target.value)}
-                    placeholder="imran@demo-agency.com"
+                    placeholder="e.g., imran@agency.com or imran@gmail.com"
                     className="w-full px-3.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-sm text-slate-900 dark:text-white"
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Login Password / Access Token *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setMemPassword(`${memRole.toLowerCase()}-${Math.random().toString(36).slice(2, 8)}`)}
+                      className="text-[11px] text-teal-600 dark:text-teal-400 hover:underline inline-flex items-center gap-1"
+                    >
+                      <Key className="w-3 h-3" />
+                      Auto-generate Token
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showMemPassword ? 'text' : 'password'}
+                      required
+                      value={memPassword}
+                      onChange={(e) => setMemPassword(e.target.value)}
+                      placeholder="e.g., StaffSecret#2026 or token"
+                      className="w-full pl-3.5 pr-10 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-sm text-slate-900 dark:text-white font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowMemPassword((prev) => !prev)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      {showMemPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                    Role Level
+                    Role Level & Dashboard Type *
                   </label>
                   <select
                     value={memRole}
                     onChange={(e) => setMemRole(e.target.value as 'EMPLOYEE' | 'MANAGER')}
-                    className="w-full px-3.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-sm text-slate-900 dark:text-white"
+                    className="w-full px-3.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-sm text-slate-900 dark:text-white font-medium"
                   >
-                    <option value="EMPLOYEE">Specialist (Employee)</option>
-                    <option value="MANAGER">Department Manager</option>
+                    <option value="EMPLOYEE">Specialist (EMPLOYEE Portal - Kanban, Time & Tasks)</option>
+                    <option value="MANAGER">Department Manager (MANAGER Portal - Workload & Routing)</option>
                   </select>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                    Job Title
+                    Professional Job Title *
                   </label>
                   <input
                     type="text"
+                    required
                     value={memTitle}
                     onChange={(e) => setMemTitle(e.target.value)}
+                    placeholder="e.g., Senior Paid Media Strategist"
                     className="w-full px-3.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-sm text-slate-900 dark:text-white"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                    Department
+                    Department Assignment *
                   </label>
                   <select
                     value={memDeptId}
@@ -1284,12 +1409,16 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
                   </select>
                 </div>
               </div>
-              <div className="flex justify-end pt-2">
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-200/80 dark:border-slate-800/80">
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Role permissions and login credentials saved directly to system
+                </span>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+                  className="px-5 py-2.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold shadow-xs"
                 >
-                  Add to Agency Roster
+                  Register Staff & Activate Role Access
                 </button>
               </div>
             </form>

@@ -45,6 +45,7 @@ export interface User {
   weeklyCapacityHours: number;
   performanceScore: number; // 0 - 100
   joined_at: string;
+  password?: string;
 }
 
 export interface Department {
@@ -72,6 +73,7 @@ export interface Client {
   joined_date: string;
   website: string;
   notes: string; // Internal only
+  password?: string;
 }
 
 export type LeadStatus = 'New' | 'Contacted' | 'Qualified' | 'Proposal' | 'Negotiation' | 'Won' | 'Lost';

@@ -254,31 +254,21 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         })}
       </div>
 
-      {/* Cross-Role Evaluator Switcher & Current User Footer */}
+      {/* Professional Authenticated Session Footer */}
       <div className="p-3 border-t border-slate-200/80 dark:border-slate-800/80 space-y-3">
         {(!sidebarCollapsed || isMobile) && (
-          <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 space-y-1.5">
-            <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
-              <span>DEMO ROLE SWITCHER</span>
-              <span>LIVE SYNC</span>
+          <div className="p-2.5 rounded-lg bg-slate-100/70 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800/80 space-y-2">
+            <div className="flex items-center justify-between text-[10px]">
+              <span className="font-semibold px-1.5 py-0.5 rounded uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 border border-indigo-200/40 dark:border-indigo-800/50">
+                {currentUser.role} PORTAL
+              </span>
+              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Verified
+              </span>
             </div>
-            <div className="grid grid-cols-2 gap-1">
-              {(['FOUNDER', 'MANAGER', 'EMPLOYEE', 'CLIENT'] as Role[]).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => {
-                    quickSwitchRole(r);
-                    if (isMobile) setMobileMenuOpen(false);
-                  }}
-                  className={`py-1 px-2 rounded text-[11px] font-semibold transition-colors ${
-                    currentUser.role === r
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  {r}
-                </button>
-              ))}
+            <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">
+              {currentUser.email}
             </div>
           </div>
         )}
