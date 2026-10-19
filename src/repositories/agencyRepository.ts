@@ -185,8 +185,42 @@ class MockAgencyRepository implements IAgencyRepository {
     loaded.clients = loaded.clients.filter((c) => !deleted.has(c.id));
     loaded.leads = loaded.leads.filter((l) => !deleted.has(l.id));
     loaded.users = loaded.users.filter((u) => !deleted.has(u.id));
-    loaded.departments = loaded.departments.filter((d) => !deleted.has(d.id));
     loaded.calendarEvents = loaded.calendarEvents.filter((e) => !deleted.has(e.id));
+
+    // ALWAYS enforce the EXACT 5 standard agency departments requested by user:
+    // 01 — Graphic Design (Graphic World)
+    // 02 — Digital Marketing
+    // 03 — Social Media Management
+    // 04 — Creative Marketing
+    // 05 — Shopifi
+    loaded.departments = structuredClone(SEED_DEPARTMENTS);
+
+    // Map any projects, tasks, or users with outdated or missing department IDs to valid 01-05 departments
+    const validDeptIds = new Set(SEED_DEPARTMENTS.map((d) => d.id));
+    const mapDeptId = (id: string | undefined): string => {
+      if (!id || !validDeptIds.has(id)) {
+        if (id === 'dept_006') return 'dept_005';
+        if (id === 'dept_007') return 'dept_004';
+        if (id === 'dept_008') return 'dept_001';
+        if (id === 'dept_009') return 'dept_002';
+        if (id === 'dept_010') return 'dept_003';
+        return 'dept_001';
+      }
+      return id;
+    };
+
+    loaded.users = loaded.users.map((u) => ({
+      ...u,
+      department_id: u.department_id ? mapDeptId(u.department_id) : undefined,
+    }));
+    loaded.projects = loaded.projects.map((p) => ({
+      ...p,
+      department_id: mapDeptId(p.department_id),
+    }));
+    loaded.tasks = loaded.tasks.map((t) => ({
+      ...t,
+      department_id: t.department_id ? mapDeptId(t.department_id) : undefined,
+    }));
 
     // Guarantee: ONLY ONE Founder - Fahim Ahmed (fsrfahimahmed@gmail.com, pass 999888)
     const founderUser: User = {

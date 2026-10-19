@@ -22,6 +22,7 @@ import {
 import { useAgency } from '../../context/AgencyContext';
 import { formatCurrency } from '../../services/agencyServices';
 import { Priority } from '../../types/domain';
+import { SEED_DEPARTMENTS } from '../../data/seedData';
 
 type CreateMode =
   | 'project'
@@ -83,7 +84,14 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
   const [prjObjectiveText, setPrjObjectiveText] = useState(
     'Achieve 4.0x blended ROAS within 45 days\nDeliver 24 modular ad variations'
   );
-  const [prjDeptId, setPrjDeptId] = useState(snapshot.departments[2]?.id || 'dept_003');
+  const departmentsList =
+    snapshot.departments && snapshot.departments.length > 0
+      ? snapshot.departments
+      : SEED_DEPARTMENTS;
+
+  const [prjDeptId, setPrjDeptId] = useState(
+    () => snapshot.departments[0]?.id || SEED_DEPARTMENTS[0].id
+  );
   const [prjManagerId, setPrjManagerId] = useState('usr_mgr_01');
   const [prjEmployeeIds, setPrjEmployeeIds] = useState<string[]>(['usr_emp_01', 'usr_emp_02']);
   const [prjBudget, setPrjBudget] = useState(1500000);
@@ -123,7 +131,20 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
   const [showMemPassword, setShowMemPassword] = useState(false);
   const [memRole, setMemRole] = useState<'EMPLOYEE' | 'MANAGER'>('EMPLOYEE');
   const [memTitle, setMemTitle] = useState('Performance Marketing Specialist');
-  const [memDeptId, setMemDeptId] = useState('dept_003');
+  const [memDeptId, setMemDeptId] = useState(
+    () => snapshot.departments[0]?.id || SEED_DEPARTMENTS[0].id
+  );
+
+  useEffect(() => {
+    if (departmentsList.length > 0) {
+      if (!memDeptId || !departmentsList.some((d) => d.id === memDeptId)) {
+        setMemDeptId(departmentsList[0].id);
+      }
+      if (!prjDeptId || !departmentsList.some((d) => d.id === prjDeptId)) {
+        setPrjDeptId(departmentsList[0].id);
+      }
+    }
+  }, [departmentsList, memDeptId, prjDeptId]);
 
   // Dept State
   const [deptName, setDeptName] = useState('');
@@ -757,7 +778,7 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
                         onChange={(e) => setPrjDeptId(e.target.value)}
                         className="w-full px-3.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-sm text-slate-900 dark:text-white"
                       >
-                        {snapshot.departments.map((d) => (
+                        {departmentsList.map((d) => (
                           <option key={d.id} value={d.id}>
                             {d.name} ({d.code})
                           </option>
@@ -873,7 +894,7 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
                       <div>
                         <span className="text-slate-500">Department:</span>{' '}
                         <span className="font-medium text-slate-900 dark:text-white">
-                          {snapshot.departments.find((d) => d.id === prjDeptId)?.name}
+                          {departmentsList.find((d) => d.id === prjDeptId)?.name}
                         </span>
                       </div>
                       <div>
@@ -1401,7 +1422,7 @@ export const QuickCreateAndProjectWizardModal: React.FC = () => {
                     onChange={(e) => setMemDeptId(e.target.value)}
                     className="w-full px-3.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-sm text-slate-900 dark:text-white"
                   >
-                    {snapshot.departments.map((d) => (
+                    {departmentsList.map((d) => (
                       <option key={d.id} value={d.id}>
                         {d.name}
                       </option>
